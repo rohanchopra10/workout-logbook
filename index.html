@@ -1394,7 +1394,7 @@ function renderProfile(){
   </div><div class="btnrow" style="margin-top:12px"><button class="primary sm" data-act="edit-profile">Edit profile</button></div></section>
   <section class="panel"><h2>This week</h2><div>${sched().map((s,i)=>row(DAYS[i],s)).join('')}</div></section>
   <section class="panel"><h2>Exercise library</h2><p class="hint" style="margin:0 0 10px">${LIB.length} exercises with muscles, equipment, form cues and alternatives, plus warm-ups, cardio and stretches.</p><button class="primary sm" data-act="open-lib">Browse the library</button></section>
-  ${accountHTML()}${equipHTML()}${prefsHTML()}`;
+  ${equipHTML()}${prefsHTML()}${accountHTML()}`;
 }
 
 /* ---------- navigation ---------- */
