@@ -1012,9 +1012,10 @@ function fbPrompt(w){
   return `You are my gym coach. I just saved this workout. Analyse it and give my next-session targets.
 
 ABOUT ME
-- 183 cm. Weigh-ins (kg): ${ws.length?ws.map(x=>`${x.date} ${x.kg}`).join(', '):'none yet'}. Target weight: ${st.target||'not set'} kg.
-- Goal: ${goalNow()} (fat loss while keeping/building muscle, eventually visible abs and a slimmer waist).
-- I trained about a year some years ago, had a long break, and restarted about a month ago. Not a beginner, but progression should be controlled.
+- Height: ${st.height?st.height+' cm':'not given'}. Weigh-ins (kg): ${ws.length?ws.map(x=>`${x.date} ${x.kg}`).join(', '):'none yet'}. Target weight: ${st.target||'not set'} kg.
+- Goal: ${goalNow()}.
+- Training background: ${st.bg||'not given'}.
+- Workouts logged in this app: ${db.workouts.filter(x=>!x.skipped).length}${db.workouts.length?` since ${[...db.workouts].sort((a,b)=>a.date<b.date?-1:1)[0].date}`:''}. Progress weights in a controlled way.
 
 RULES
 - Don't increase weight unless I reached the top of the rep range on all working sets with good form. One strong set is not enough.
@@ -1282,7 +1283,7 @@ function weekWeight(){const mon=weekKey(today());const w=db.weights.filter(x=>we
 let wz=null;
 function openWizard(mode){
   const st=db.settings;
-  wz={mode,split:activePlan(),days:new Set(trainDays()),weight:String(weekWeight()||''),height:String(st.height||183),goal:goalNow(),target:String(st.target||(st.goal&&st.goal.target)||'')};
+  wz={mode,split:activePlan(),days:new Set(trainDays()),weight:String(weekWeight()||''),height:String(st.height||183),goal:goalNow(),target:String(st.target||(st.goal&&st.goal.target)||''),bg:st.bg||''};
   drawWizard();$('#wiz').hidden=false;
 }
 function drawWizard(){
@@ -1292,7 +1293,7 @@ function drawWizard(){
   const opt=(arr,v)=>arr.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('');
   $('#wiz-body').innerHTML=`<h2 id="w-title">${title}</h2><p>${text}</p>
   ${withW||withProfile?`<div class="row2">${withW?`<label>Weight (kg)<input id="w-weight" inputmode="decimal" placeholder="${esc(latestKg()||'96.1')}" value="${esc(wz.weight)}"></label>`:''}${withProfile?`<label>Height (cm)<input id="w-height" inputmode="numeric" value="${esc(wz.height)}"></label>`:''}</div>`:''}
-  ${withProfile?`<label>Goal<select id="w-goal">${opt(GOALS,wz.goal)}</select></label><label>Target weight (kg)<input id="w-target" inputmode="decimal" placeholder="Optional" value="${esc(wz.target)}"></label>`:''}
+  ${withProfile?`<label>Goal<select id="w-goal">${opt(GOALS,wz.goal)}</select></label><label>Target weight (kg)<input id="w-target" inputmode="decimal" placeholder="Optional" value="${esc(wz.target)}"></label><label>Training background (for coach feedback)<textarea id="w-bg" rows="2" placeholder="e.g. Trained 1 year before, restarted last month">${esc(wz.bg)}</textarea></label>`:''}
   <p class="wlabel">Workout type</p>
   <div class="seg"><button data-w="split" data-v="double" aria-pressed="${wz.split==='double'}">Double-part</button><button data-w="split" data-v="single" aria-pressed="${wz.split==='single'}">Single-part</button></div>
   <p class="wlabel">Training days <span class="wcount">${n} selected</span></p>
@@ -1307,7 +1308,7 @@ function saveWizard(){
   if(n<3||n>6){toast('Choose 3 to 6 training days');return}
   let kg='';
   if(m!=='edit'){kg=num(wz.weight);if((m==='setup'||m==='week')&&(kg===''||kg<30||kg>300)){toast('Enter your weight in kg, e.g. 96.1');return}if(kg!==''&&(kg<30||kg>300)){toast('Check your weight');return}}
-  if(m==='setup'||m==='profile'){const hcm=num(wz.height);if(hcm===''||hcm<120||hcm>230){toast('Enter your height in cm, e.g. 183');return}db.settings.height=hcm;db.settings.goalType=wz.goal;db.settings.target=num(wz.target)}
+  if(m==='setup'||m==='profile'){const hcm=num(wz.height);if(hcm===''||hcm<120||hcm>230){toast('Enter your height in cm, e.g. 183');return}db.settings.height=hcm;db.settings.goalType=wz.goal;db.settings.target=num(wz.target);db.settings.bg=String(wz.bg||'').trim().slice(0,300)}
   const nd=[...wz.days].sort((a,b)=>a-b);if(wz.split!==activePlan()||String(nd)!==String(trainDays()))delete db.settings.weekPlan;db.settings.split=wz.split;db.settings.plan=wz.split;db.settings.days=nd;
   if(m==='setup'||m==='week')db.settings.checkin=weekKey(today());
   if(kg!==''&&kg!==weekWeight()){const date=today();db.weights=db.weights.filter(x=>x.date!==date);db.weights.push({date,kg})}
@@ -1315,7 +1316,7 @@ function saveWizard(){
   if(!draft.editingId&&!setsFilled()){freshDraft();saveDraft()}
   closeWizard();toast('Saved');render();
 }
-$('#wiz').addEventListener('input',e=>{const t=e.target;if(!wz)return;if(t.id==='w-weight')wz.weight=t.value;else if(t.id==='w-height')wz.height=t.value;else if(t.id==='w-target')wz.target=t.value});
+$('#wiz').addEventListener('input',e=>{const t=e.target;if(!wz)return;if(t.id==='w-weight')wz.weight=t.value;else if(t.id==='w-height')wz.height=t.value;else if(t.id==='w-target')wz.target=t.value;else if(t.id==='w-bg')wz.bg=t.value});
 $('#wiz').addEventListener('change',e=>{if(wz&&e.target.id==='w-goal')wz.goal=e.target.value});
 $('#wiz').addEventListener('click',e=>{
   const b=e.target.closest('[data-w]');if(!b||!wz)return;const w=b.dataset.w,v=b.dataset.v;
@@ -1335,7 +1336,7 @@ function maybeCheckin(){
 function renderProfile(){
   const st=db.settings,row=(k,v)=>`<div class="row-line"><span>${k}</span><span class="kg">${esc(v)}</span></div>`;
   view.innerHTML=`<section class="panel"><h2>Profile</h2><div>
-  ${row('Height',st.height?st.height+' cm':'Not set')}${row('Latest weight',latestKg()?fmtNum(latestKg())+' kg':'Not logged')}${row('Goal',goalNow())}${row('Target weight',(st.target||(st.goal&&st.goal.target))?(st.target||st.goal.target)+' kg':'Not set')}${row('Workout type',activePlan()==='double'?'Double-part':'Single-part')}${row('Training days',trainDays().map(i=>DAYS[i]).join(', '))}
+  ${row('Height',st.height?st.height+' cm':'Not set')}${row('Latest weight',latestKg()?fmtNum(latestKg())+' kg':'Not logged')}${row('Goal',goalNow())}${row('Training background',st.bg||'Not set')}${row('Target weight',(st.target||(st.goal&&st.goal.target))?(st.target||st.goal.target)+' kg':'Not set')}${row('Workout type',activePlan()==='double'?'Double-part':'Single-part')}${row('Training days',trainDays().map(i=>DAYS[i]).join(', '))}
   </div><div class="btnrow" style="margin-top:12px"><button class="primary sm" data-act="edit-profile">Edit profile</button></div></section>
   <section class="panel"><h2>This week</h2><div>${sched().map((s,i)=>row(DAYS[i],s)).join('')}</div></section>
   <section class="panel"><h2>Exercise library</h2><p class="hint" style="margin:0 0 10px">${LIB.length} exercises with muscles, equipment, form cues and alternatives, plus warm-ups, cardio and stretches.</p><button class="primary sm" data-act="open-lib">Browse the library</button></section>
