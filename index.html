@@ -43,7 +43,7 @@ html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:10
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .cond{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
 .wrap{max-width:560px;margin:0 auto;padding:14px 14px 92px}
-.top h1{font:700 40px/1 "Barlow Condensed","Arial Narrow",system-ui,sans-serif;margin:6px 0 2px;letter-spacing:.3px}
+.top h1{overflow-wrap:anywhere;font:700 40px/1 "Barlow Condensed","Arial Narrow",system-ui,sans-serif;margin:6px 0 2px;letter-spacing:.3px}
 .sub{color:var(--muted);margin:0 0 14px;font-size:14px}
 .panel,.ex,details.wk{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
 .ex{border-left:5px solid var(--accent);border-radius:6px 14px 14px 6px}
@@ -238,7 +238,7 @@ details.wk summary::-webkit-details-marker{display:none}
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Logbook</h1>
+    <h1 id="apptitle">Logbook</h1>
     <p class="sub" id="sync">Saved on this phone</p>
   </header>
   <main id="view"></main>
@@ -868,7 +868,7 @@ function weekStrip(){
 function weighCard(){
   const mon=weekKey(today());if(db.weights.some(x=>weekKey(x.date)===mon))return '';
   const isMon=new Date().getDay()===1;const last=[...db.weights].sort((a,b)=>a.date<b.date?1:-1)[0];
-  return `<section class="panel weigh"><h2>${isMon?'Monday weigh-in':'This week\'s weigh-in'}</h2><p class="hint" style="margin:0 0 10px">${isMon?'Weigh yourself this morning, after the toilet and before eating.':'You haven\'t logged your weight this week. Weigh in next Monday morning, or add it now.'}</p><div class="qrow"><input id="q-kg" inputmode="decimal" aria-label="Weight in kg" placeholder="${last?fmtNum(last.kg):'96.1'} kg"><button class="primary" data-act="bw-quick">Save weight</button></div></section>`;
+  return `<section class="panel weigh"><h2>${isMon?'Monday weigh-in':'This week\'s weigh-in'}</h2><p class="hint" style="margin:0 0 10px">${isMon?'Weigh yourself this morning, after the toilet and before eating.':'You haven\'t logged your weight this week. Weigh in next Monday morning, or add it now.'}</p><div class="qrow"><input id="q-kg" inputmode="decimal" aria-label="Weight in kg" placeholder="${last?fmtNum(last.kg)+' kg':'kg'}"><button class="primary" data-act="bw-quick">Save weight</button></div></section>`;
 }
 function pickerHTML(d){
   const day=new Date(d.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'long'}),plan=ORDER[activePlan()];
@@ -1012,7 +1012,7 @@ function fbPrompt(w){
   return `You are my gym coach. I just saved this workout. Analyse it and give my next-session targets.
 
 ABOUT ME
-- Height: ${st.height?st.height+' cm':'not given'}. Weigh-ins (kg): ${ws.length?ws.map(x=>`${x.date} ${x.kg}`).join(', '):'none yet'}. Target weight: ${st.target||'not set'} kg.
+- Name: ${st.name||'not given'}. Height: ${st.height?st.height+' cm':'not given'}. Weigh-ins (kg): ${ws.length?ws.map(x=>`${x.date} ${x.kg}`).join(', '):'none yet'}. Target weight: ${st.target?st.target+' kg':'not set'}.
 - Goal: ${goalNow()}.
 - Training background: ${st.bg||'not given'}.
 - Workouts logged in this app: ${db.workouts.filter(x=>!x.skipped).length}${db.workouts.length?` since ${[...db.workouts].sort((a,b)=>a.date<b.date?-1:1)[0].date}`:''}. Progress weights in a controlled way.
@@ -1283,7 +1283,7 @@ function weekWeight(){const mon=weekKey(today());const w=db.weights.filter(x=>we
 let wz=null;
 function openWizard(mode){
   const st=db.settings;
-  wz={mode,split:activePlan(),days:new Set(trainDays()),weight:String(weekWeight()||''),height:String(st.height||183),goal:goalNow(),target:String(st.target||(st.goal&&st.goal.target)||''),bg:st.bg||''};
+  wz={mode,split:activePlan(),days:new Set(trainDays()),weight:String(weekWeight()||''),height:String(st.height||''),name:st.name||'',goal:goalNow(),target:String(st.target||(st.goal&&st.goal.target)||''),bg:st.bg||''};
   drawWizard();$('#wiz').hidden=false;
 }
 function drawWizard(){
@@ -1292,7 +1292,8 @@ function drawWizard(){
   const text={setup:'Tell me a few things and your workouts will be planned for you.',week:'Quick weekly update. It takes 10 seconds.',edit:'Change your workout type or training days. Today\'s workout updates right away.',profile:'Update your details any time.'}[m];
   const opt=(arr,v)=>arr.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('');
   $('#wiz-body').innerHTML=`<h2 id="w-title">${title}</h2><p>${text}</p>
-  ${withW||withProfile?`<div class="row2">${withW?`<label>Weight (kg)<input id="w-weight" inputmode="decimal" placeholder="${esc(latestKg()||'96.1')}" value="${esc(wz.weight)}"></label>`:''}${withProfile?`<label>Height (cm)<input id="w-height" inputmode="numeric" value="${esc(wz.height)}"></label>`:''}</div>`:''}
+  ${withProfile?`<label>Your name<input id="w-name" autocomplete="given-name" placeholder="e.g. Rohan" value="${esc(wz.name)}"></label>`:''}
+  ${withW||withProfile?`<div class="row2">${withW?`<label>Weight (kg)<input id="w-weight" inputmode="decimal" placeholder="${esc(latestKg()||'e.g. 70')}" value="${esc(wz.weight)}"></label>`:''}${withProfile?`<label>Height (cm)<input id="w-height" inputmode="numeric" placeholder="e.g. 170" value="${esc(wz.height)}"></label>`:''}</div>`:''}
   ${withProfile?`<label>Goal<select id="w-goal">${opt(GOALS,wz.goal)}</select></label><label>Target weight (kg)<input id="w-target" inputmode="decimal" placeholder="Optional" value="${esc(wz.target)}"></label><label>Training background (for coach feedback)<textarea id="w-bg" rows="2" placeholder="e.g. Trained 1 year before, restarted last month">${esc(wz.bg)}</textarea></label>`:''}
   <p class="wlabel">Workout type</p>
   <div class="seg"><button data-w="split" data-v="double" aria-pressed="${wz.split==='double'}">Double-part</button><button data-w="split" data-v="single" aria-pressed="${wz.split==='single'}">Single-part</button></div>
@@ -1307,8 +1308,8 @@ function saveWizard(){
   const m=wz.mode,n=wz.days.size;
   if(n<3||n>6){toast('Choose 3 to 6 training days');return}
   let kg='';
-  if(m!=='edit'){kg=num(wz.weight);if((m==='setup'||m==='week')&&(kg===''||kg<30||kg>300)){toast('Enter your weight in kg, e.g. 96.1');return}if(kg!==''&&(kg<30||kg>300)){toast('Check your weight');return}}
-  if(m==='setup'||m==='profile'){const hcm=num(wz.height);if(hcm===''||hcm<120||hcm>230){toast('Enter your height in cm, e.g. 183');return}db.settings.height=hcm;db.settings.goalType=wz.goal;db.settings.target=num(wz.target);db.settings.bg=String(wz.bg||'').trim().slice(0,300)}
+  if(m!=='edit'){kg=num(wz.weight);if((m==='setup'||m==='week')&&(kg===''||kg<30||kg>300)){toast('Enter your weight in kg, e.g. 70');return}if(kg!==''&&(kg<30||kg>300)){toast('Check your weight');return}}
+  if(m==='setup'||m==='profile'){const nm=String(wz.name||'').trim().slice(0,40);if(!nm){toast('Enter your name');return}db.settings.name=nm;const hcm=num(wz.height);if(hcm===''||hcm<120||hcm>230){toast('Enter your height in cm, e.g. 170');return}db.settings.height=hcm;db.settings.goalType=wz.goal;db.settings.target=num(wz.target);db.settings.bg=String(wz.bg||'').trim().slice(0,300)}
   const nd=[...wz.days].sort((a,b)=>a-b);if(wz.split!==activePlan()||String(nd)!==String(trainDays()))delete db.settings.weekPlan;db.settings.split=wz.split;db.settings.plan=wz.split;db.settings.days=nd;
   if(m==='setup'||m==='week')db.settings.checkin=weekKey(today());
   if(kg!==''&&kg!==weekWeight()){const date=today();db.weights=db.weights.filter(x=>x.date!==date);db.weights.push({date,kg})}
@@ -1316,7 +1317,7 @@ function saveWizard(){
   if(!draft.editingId&&!setsFilled()){freshDraft();saveDraft()}
   closeWizard();toast('Saved');render();
 }
-$('#wiz').addEventListener('input',e=>{const t=e.target;if(!wz)return;if(t.id==='w-weight')wz.weight=t.value;else if(t.id==='w-height')wz.height=t.value;else if(t.id==='w-target')wz.target=t.value;else if(t.id==='w-bg')wz.bg=t.value});
+$('#wiz').addEventListener('input',e=>{const t=e.target;if(!wz)return;if(t.id==='w-weight')wz.weight=t.value;else if(t.id==='w-height')wz.height=t.value;else if(t.id==='w-target')wz.target=t.value;else if(t.id==='w-bg')wz.bg=t.value;else if(t.id==='w-name')wz.name=t.value});
 $('#wiz').addEventListener('change',e=>{if(wz&&e.target.id==='w-goal')wz.goal=e.target.value});
 $('#wiz').addEventListener('click',e=>{
   const b=e.target.closest('[data-w]');if(!b||!wz)return;const w=b.dataset.w,v=b.dataset.v;
@@ -1329,6 +1330,7 @@ $('#wiz').addEventListener('click',e=>{
 function maybeCheckin(){
   const st=db.settings;
   if(!st.height)return openWizard('setup');
+  if(!st.name){try{if(localStorage.getItem('gymlog-askname')===today())return;localStorage.setItem('gymlog-askname',today())}catch(e){}return openWizard('profile')}
   if(st.checkin===weekKey(today()))return;
   try{if(localStorage.getItem('gymlog-checkin-later')===today())return}catch(e){}
   openWizard('week');
@@ -1336,7 +1338,7 @@ function maybeCheckin(){
 function renderProfile(){
   const st=db.settings,row=(k,v)=>`<div class="row-line"><span>${k}</span><span class="kg">${esc(v)}</span></div>`;
   view.innerHTML=`<section class="panel"><h2>Profile</h2><div>
-  ${row('Height',st.height?st.height+' cm':'Not set')}${row('Latest weight',latestKg()?fmtNum(latestKg())+' kg':'Not logged')}${row('Goal',goalNow())}${row('Training background',st.bg||'Not set')}${row('Target weight',(st.target||(st.goal&&st.goal.target))?(st.target||st.goal.target)+' kg':'Not set')}${row('Workout type',activePlan()==='double'?'Double-part':'Single-part')}${row('Training days',trainDays().map(i=>DAYS[i]).join(', '))}
+  ${row('Name',st.name||'Not set')}${row('Height',st.height?st.height+' cm':'Not set')}${row('Latest weight',latestKg()?fmtNum(latestKg())+' kg':'Not logged')}${row('Goal',goalNow())}${row('Training background',st.bg||'Not set')}${row('Target weight',(st.target||(st.goal&&st.goal.target))?(st.target||st.goal.target)+' kg':'Not set')}${row('Workout type',activePlan()==='double'?'Double-part':'Single-part')}${row('Training days',trainDays().map(i=>DAYS[i]).join(', '))}
   </div><div class="btnrow" style="margin-top:12px"><button class="primary sm" data-act="edit-profile">Edit profile</button></div></section>
   <section class="panel"><h2>This week</h2><div>${sched().map((s,i)=>row(DAYS[i],s)).join('')}</div></section>
   <section class="panel"><h2>Exercise library</h2><p class="hint" style="margin:0 0 10px">${LIB.length} exercises with muscles, equipment, form cues and alternatives, plus warm-ups, cardio and stretches.</p><button class="primary sm" data-act="open-lib">Browse the library</button></section>
@@ -1416,23 +1418,23 @@ view.addEventListener('click',e=>{
   if(act==='backup-file'){saveBackupFile();return}
   if(act==='restore-file'){restoreFromFile();return}
   if(act==='restore'){openModal({title:'Restore from backup',text:'Paste a backup you copied earlier. It replaces everything currently in this app.',area:{value:'',placeholder:'Paste backup here'},ok:{label:'Restore',danger:true,fn:v=>restoreText(v)}});return}
-  if(act==='bw-quick'){const kg=num($('#q-kg').value);if(kg===''||kg<30||kg>300){toast('Enter your weight in kg, e.g. 96.1');return}const date=today();db.weights=db.weights.filter(x=>x.date!==date);db.weights.push({date,kg});if(persist()){toast('Weight saved');renderLog()}return}
+  if(act==='bw-quick'){const kg=num($('#q-kg').value);if(kg===''||kg<30||kg>300){toast('Enter your weight in kg, e.g. 70');return}const date=today();db.weights=db.weights.filter(x=>x.date!==date);db.weights.push({date,kg});if(persist()){toast('Weight saved');renderLog()}return}
   if(act==='skip'){ask('Skip today?',`${draft.type} will be marked as skipped for today.`,'Skip today',()=>{db.workouts.push({id:uid(),date:today(),type:draft.type,exercises:[],cardio:'',notes:'',skipped:true,created:Date.now()});if(persist()){freshDraft();saveDraft();toast('Marked as skipped');renderLog()}});return}
   if(act==='unskip'){const s=skipToday();if(s){db.workouts=db.workouts.filter(w=>w.id!==s.id);persist();toast('Skip undone');renderLog()}return}
-  if(act==='bw-add'){const kg=num($('#bw-kg').value);const date=$('#bw-date').value||today();if(kg===''||kg<30||kg>300){toast('Enter your weight in kg, e.g. 96.1');return}db.weights=db.weights.filter(x=>x.date!==date);db.weights.push({date,kg});if(persist()){toast('Weigh-in added');renderWeight()}return}
+  if(act==='bw-add'){const kg=num($('#bw-kg').value);const date=$('#bw-date').value||today();if(kg===''||kg<30||kg>300){toast('Enter your weight in kg, e.g. 70');return}db.weights=db.weights.filter(x=>x.date!==date);db.weights.push({date,kg});if(persist()){toast('Weigh-in added');renderWeight()}return}
   if(act==='bw-del'){const d=b.dataset.date;ask('Delete weigh-in?',niceDate(d)+' will be removed.','Delete',()=>{db.weights=db.weights.filter(x=>x.date!==d);persist();renderWeight()},true);return}
 });
 
 /* ---------- LOCAL STORAGE ONLY (this phone) ---------- */
 const FIRST_RUN=(()=>{try{return !localStorage.getItem(KEY)}catch(e){return false}})();
 function daysSinceBackup(){const b=db.settings.lastBackup;return b?Math.floor((new Date(today()+'T00:00:00')-new Date(b+'T00:00:00'))/864e5):null}
-function setSync(){const el=$('#sync');if(!el)return;const d=daysSinceBackup();el.textContent='Saved on this phone · '+(d===null?'no backup yet':d===0?'backed up today':`last backup ${d} day${d===1?'':'s'} ago`)}
+function setSync(){const tt=$('#apptitle');if(tt)tt.textContent=db.settings.name?`${db.settings.name}'s Logbook`:'Logbook';const el=$('#sync');if(!el)return;const d=daysSinceBackup();el.textContent='Saved on this phone · '+(d===null?'no backup yet':d===0?'backed up today':`last backup ${d} day${d===1?'':'s'} ago`)}
 function scheduleSync(){setSync()}
 function scheduleDraftSync(){}
 function markBackup(){db.settings.lastBackup=today();persist();setSync();if(tab==='history')renderHistory();if(tab==='log')renderLog()}
 function backupText(){return JSON.stringify({app:'workout-logbook',exported:new Date().toISOString(),workouts:db.workouts,weights:db.weights,settings:db.settings})}
 async function saveBackupFile(){
-  const name=`workout-logbook-backup-${today()}.json`,blob=new Blob([backupText()],{type:'application/json'});
+  const name=`workout-logbook-${(db.settings.name||'backup').toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${today()}.json`,blob=new Blob([backupText()],{type:'application/json'});
   try{const f=new File([blob],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Workout Logbook backup'});markBackup();return}}catch(e){if(e&&e.name==='AbortError')return}
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);markBackup();
 }
