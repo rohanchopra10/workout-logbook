@@ -245,9 +245,44 @@ details.wk summary::-webkit-details-marker{display:none}
 .authalt{text-align:center;margin:14px 0 0}
 .authnote{text-align:center;color:var(--muted);font-size:13px;margin:16px 0 0}
 .authbox form .primary{margin-top:4px}
+.splash{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;transition:opacity .3s}
+.splash.bye{opacity:0;pointer-events:none}
+.sp-tile{width:120px;height:120px;border-radius:28px;background:#1F4FD1;display:grid;place-items:center;box-shadow:0 8px 24px rgba(31,79,209,.28);transition:background .4s,box-shadow .4s}
+.sp-tile svg{width:120px;height:120px;overflow:visible}
+.sp-half{transform-box:fill-box;transform-origin:center}
+.sp-msg{font:600 20px/1.2 "Barlow Condensed","Arial Narrow",system-ui,sans-serif;letter-spacing:.3px;text-align:center;min-height:24px}
+.sp-sub{color:var(--muted);font-size:14px;text-align:center;max-width:300px;margin-top:-8px}
+.splash.open .sp-tile{animation:spPop .35s cubic-bezier(.2,.9,.3,1.3) both}
+.splash.open .sp-L{animation:spL 1.25s .3s cubic-bezier(.65,0,.35,1) both}
+.splash.open .sp-R{animation:spR 1.25s .3s cubic-bezier(.65,0,.35,1) both}
+.splash.load .sp-L{animation:spL 1.4s cubic-bezier(.65,0,.35,1) infinite}
+.splash.load .sp-R{animation:spR 1.4s cubic-bezier(.65,0,.35,1) infinite}
+.splash.load .sp-msg::after{content:'';animation:spDots 1.2s steps(4) infinite}
+.splash.off .sp-tile{background:#6B7A90;box-shadow:none}
+.splash.off .sp-L{animation:spBL .5s cubic-bezier(.3,1.4,.5,1) forwards,spWL 2.4s .5s ease-in-out infinite}
+.splash.off .sp-R{animation:spBR .5s cubic-bezier(.3,1.4,.5,1) forwards,spWR 2.4s .5s ease-in-out infinite}
+@keyframes spPop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes spL{0%{transform:translateX(0) rotate(0)}18%{transform:translateX(-9px) rotate(0)}78%{transform:translateX(-9px) rotate(-360deg)}100%{transform:translateX(0) rotate(-360deg)}}
+@keyframes spR{0%{transform:translateX(0) rotate(0)}18%{transform:translateX(9px) rotate(0)}78%{transform:translateX(9px) rotate(360deg)}100%{transform:translateX(0) rotate(360deg)}}
+@keyframes spDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+@keyframes spBL{to{transform:translate(-9px,6px) rotate(-18deg)}}
+@keyframes spBR{to{transform:translate(9px,6px) rotate(18deg)}}
+@keyframes spWL{0%,100%{transform:translate(-9px,6px) rotate(-18deg)}50%{transform:translate(-9px,8px) rotate(-24deg)}}
+@keyframes spWR{0%,100%{transform:translate(9px,6px) rotate(18deg)}50%{transform:translate(9px,8px) rotate(24deg)}}
+@media (prefers-reduced-motion:reduce){.splash .sp-L,.splash .sp-R,.splash .sp-tile{animation:none!important}}
 </style>
 </head>
 <body>
+<div id="splash" class="splash open" role="status" aria-live="polite">
+  <div class="sp-tile"><svg viewBox="0 0 192 192" aria-hidden="true">
+    <g class="sp-half sp-L" fill="#fff"><rect x="33" y="73" width="13" height="46" rx="6.5"/><rect x="50" y="61" width="16" height="70" rx="7"/><rect x="64" y="90" width="32" height="12"/></g>
+    <g class="sp-half sp-R" fill="#fff"><rect x="96" y="90" width="32" height="12"/><rect x="126" y="61" width="16" height="70" rx="7"/><rect x="146" y="73" width="13" height="46" rx="6.5"/></g>
+  </svg></div>
+  <div class="sp-msg" id="sp-msg">Workout Logbook</div>
+  <div class="sp-sub" id="sp-sub" hidden></div>
+  <button class="ghost sm" id="sp-retry" hidden>Try again</button>
+</div>
+<script>window.SPLASH_T0=Date.now();</script>
 <div class="wrap">
   <header class="top">
     <h1 id="apptitle">Logbook</h1>
@@ -1500,7 +1535,7 @@ function initAccount(){
 function onSignedIn(u){
   let owner=null;try{owner=localStorage.getItem(OWNER_KEY)}catch(e){}
   if(owner&&owner!==u.id){db={workouts:[],weights:[],settings:{plan:'double'},deleted:{},settingsAt:0};takeSnap();try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}}
-  try{localStorage.setItem(OWNER_KEY,u.id)}catch(e){}
+  try{localStorage.setItem(OWNER_KEY,u.id);localStorage.setItem('gymlog-had-account','1')}catch(e){}
   acct.state='syncing';setSync();
   syncNow(true);
 }
@@ -1532,6 +1567,8 @@ async function syncNow(first){
     acct.state='ok';acct.lastSync=Date.now();ok=true;
     if(first){if(!draft.editingId&&!setsFilled()){freshDraft();saveDraft()}render();closeWelcomeIfOpen();if(!finishLoad.asked){finishLoad.asked=true;setTimeout(maybeCheckin,400)}}
   }catch(e){acct.state=(navigator.onLine===false||String(e&&e.message).includes('fetch'))?'offline':'error';acct.err=e&&e.message||String(e)}
+  if(first){if(ok||db.workouts.length||db.settings.height)splashDone();else splashOffline(()=>syncNow(true))}
+  if(first&&!ok&&!finishLoad.asked){finishLoad.asked=true;setTimeout(maybeCheckin,400)}
   acct.busy=false;setSync();
   if(tab==='profile'&&!document.querySelector('.modal:not([hidden])'))renderProfile();
   if(acct.again){acct.again=false;setTimeout(()=>syncNow(),300)}
@@ -1583,7 +1620,7 @@ function paintAuth(){
     <button class="primary" type="submit">${up?'Create account':'Sign in'}</button>
   </form>
   ${up?'':'<p class="authalt"><button class="linkbtn" data-auth="forgot">Forgot password?</button></p>'}
-  <p class="authalt">${authFromWelcome?'<button class="linkbtn" data-auth="local">Use without an account</button>':'<button class="linkbtn" data-auth="close">Not now</button>'}</p>
+  ${authFromWelcome?'':'<p class="authalt"><button class="linkbtn" data-auth="close">Not now</button></p>'}
   <p class="authnote">Your workouts are private: only you can see them when signed in.</p>`;
 }
 $('#auth').addEventListener('click',e=>{
@@ -1677,12 +1714,29 @@ function initApp(){
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
   initAccount();
   setSync();
-  if(FIRST_RUN){finishLoad(false);
-    if(acctReady())acct.sb.auth.getSession().then(({data})=>{if(!(data&&data.session))showAuth('signup',true)}).catch(()=>showAuth('signup',true));
-    else showWelcome()}
-  else finishLoad(true);
+  if(acctReady()){
+    finishLoad(false);
+    const gate=()=>{let had=false;try{had=!!localStorage.getItem('gymlog-had-account')}catch(e){}showAuth(had?'signin':'signup',true)};
+    const noSession=()=>{gate();if(navigator.onLine===false){const tryAgain=()=>{if(navigator.onLine===false)splashOffline(tryAgain);else splashDone()};splashOffline(tryAgain)}else splashDone()};
+    acct.sb.auth.getSession().then(({data})=>{if(!(data&&data.session))noSession()}).catch(noSession);
+  }else{if(FIRST_RUN){finishLoad(false);showWelcome()}else finishLoad(true);splashDone()}
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+
+/* ---------- opening animation ---------- */
+const splash={done:false,timer:null};
+function splashSet(cls,msg,sub){const el=$('#splash');if(!el||splash.done)return;el.className='splash '+cls;$('#sp-msg').textContent=msg;const sb=$('#sp-sub');sb.hidden=!sub;sb.textContent=sub||'';$('#sp-retry').hidden=cls!=='off'}
+function splashLoading(){if(!splash.done)splashSet('load','Loading your workouts')}
+function splashDone(){
+  if(splash.done)return;const wait=Math.max(0,1600-(Date.now()-(window.SPLASH_T0||0)));
+  setTimeout(()=>{if(splash.done)return;splash.done=true;clearTimeout(splash.timer);const el=$('#splash');el.classList.add('bye');setTimeout(()=>{el.hidden=true},320)},wait);
+}
+function splashOffline(retry){
+  if(splash.done)return;splashSet('off','No internet connection','Check your Wi-Fi or mobile data, then try again.');
+  $('#sp-retry').onclick=()=>{splashSet('load','Connecting');setTimeout(retry,500)};
+}
+setTimeout(()=>{const el=$('#splash');if(!splash.done&&el.classList.contains('open'))splashLoading()},1600);
+splash.timer=setTimeout(()=>{if(!$('#splash').classList.contains('off'))splashDone()},12000);
 function finishLoad(ok){
   if(!draft.editingId&&!setsFilled()){if(draft.date!==today()||!draft.exercises.length)freshDraft();else{const t=draft.type,w=draft.warmDone;applyTemplate(true);draft.type=t;draft.warmDone=w}if(!(draft.cxs||[]).some(c=>String(c.min??'').trim()))delete draft.cxs;try{localStorage.setItem(DKEY,JSON.stringify(draft))}catch(e){}}
   render();
