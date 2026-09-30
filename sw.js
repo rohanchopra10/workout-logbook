@@ -1,6 +1,6 @@
-// Workout Logbook offline support. Your data is never stored here; it stays in the app's storage on your phone.
-const CACHE = 'logbook-v1';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+// Workout Logbook offline support. Only the app's own files are cached here, never your workouts or account requests.
+const CACHE = 'logbook-v2';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './config.js', './supabase.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

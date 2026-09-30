@@ -2,7 +2,7 @@
 
 Your own workout app: weekly Double-part / Single-part plan, today's-workout menu (every double-part combination plus Custom), last-time weights and reps filled in, exercise library with smart swaps, warm-up and cool-down, cardio, weekly weigh-in, history, progress charts and coach feedback through Claude.
 
-Your workouts are saved **only on your phone**, inside the app. They are never uploaded to GitHub.
+Works on iPhone and Android. Without an account, workouts are saved only on the phone. With a free account (Supabase), they are also saved privately in the cloud and sync across phones. Workouts are never uploaded to GitHub.
 
 ## Files in this folder
 
@@ -11,6 +11,9 @@ Your workouts are saved **only on your phone**, inside the app. They are never u
 | `index.html` | The app |
 | `manifest.webmanifest` | Lets iPhone install it with a name and icon |
 | `sw.js` | Makes the app open even without internet |
+| `config.js` | Your Supabase Project URL and publishable key (turns on accounts) |
+| `supabase.js` | Sign-in and cloud sync library (don't edit) |
+| `supabase-setup.sql` | Run once in Supabase to create the private database table (no need to upload it to GitHub, harmless if you do) |
 | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | App icons |
 | `README.md` | This guide |
 
@@ -29,7 +32,11 @@ Your workouts are saved **only on your phone**, inside the app. They are never u
 6. Wait 1–2 minutes and refresh the Pages screen. Your app link appears, like
    `https://YOUR-USERNAME.github.io/workout-logbook/`
 
-## 2. Install it on your iPhone
+## 2. Install it on your phone
+
+**Android:** open the link in **Chrome** → **⋮** menu → **Add to Home screen** (or **Install app**).
+
+**iPhone:**
 
 1. Open your app link in **Safari**.
 2. Tap **Share** → **Add to Home Screen** → **Add**.
@@ -49,3 +56,15 @@ Your workouts are saved **only on your phone**, inside the app. They are never u
 ## Updating the app later
 
 When you get a new `index.html`, open your repository on GitHub → **Add file** → **Upload files** → drop the new file → **Commit changes**. The app updates the next time you open it with internet. Your data stays untouched.
+
+## Accounts and cloud sync (Supabase, free)
+
+1. Go to **supabase.com** → **Start your project** → sign in with GitHub.
+2. **New project**: name `workout-logbook`, create a strong database password (save it somewhere), region **South Asia (Mumbai)** → **Create new project**. Wait about 2 minutes.
+3. **SQL Editor** → **New query** → paste everything from `supabase-setup.sql` → **Run**. It should say *Success*.
+4. **Authentication** → **Sign In / Providers** → **Email**: keep it enabled and turn **Confirm email** OFF → **Save**. (Supabase's free email sender only delivers to your own address, so friends would never get a confirmation email.)
+5. **Authentication** → **URL Configuration**: Site URL `https://rohanchopra10.github.io/workout-logbook/` → **Save**.
+6. **Project Settings** → **API Keys** (and **Data API** for the URL): copy the **Project URL** and the **Publishable key** (starts with `sb_publishable_`, or the `anon` key). Never use the `secret` / `service_role` key.
+7. Put both into `config.js`, then upload `config.js`, `supabase.js`, `index.html` and `sw.js` to GitHub.
+
+Password reset emails reach only you until you add your own email sender (Authentication → Emails → SMTP settings).

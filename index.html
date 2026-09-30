@@ -233,6 +233,18 @@ details.wk summary::-webkit-details-marker{display:none}
 .sheet #m-input{margin:0 0 12px;font:600 24px "Barlow Condensed","Arial Narrow",system-ui,sans-serif;text-align:center}
 .sheet textarea{font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;min-height:170px}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
+.authscreen{position:fixed;inset:0;z-index:50;background:var(--bg);overflow:auto;padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px))}
+.authbox{max-width:420px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 18px}
+.authbox h1{font:700 34px/1 "Barlow Condensed","Arial Narrow",system-ui,sans-serif;margin:10px 0 6px;text-align:center}
+.authlogo{text-align:center}.authlogo img{width:64px;height:64px;border-radius:16px}
+.authsub{color:var(--muted);text-align:center;margin:0 0 16px;font-size:15px}
+.authtabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--field);border:1px solid var(--line);border-radius:12px;padding:4px;margin:0 0 14px}
+.authtabs button{min-height:40px;background:transparent;color:var(--muted);font-weight:600}
+.authtabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.authmsg{background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:15px}
+.authalt{text-align:center;margin:14px 0 0}
+.authnote{text-align:center;color:var(--muted);font-size:13px;margin:16px 0 0}
+.authbox form .primary{margin-top:4px}
 </style>
 </head>
 <body>
@@ -251,6 +263,8 @@ details.wk summary::-webkit-details-marker{display:none}
   <button data-tab="weight">Weight</button>
   <button data-tab="profile">Profile</button>
 </nav>
+
+<div id="auth" class="authscreen" hidden><div class="authbox" id="auth-body"></div></div>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -276,6 +290,8 @@ details.wk summary::-webkit-details-marker{display:none}
   </div>
 </div>
 
+<script src="config.js"></script>
+<script src="supabase.js"></script>
 <script>
 const KEY='gymlog-v1', DKEY='gymlog-draft-v1';
 const GROUPS={
@@ -363,10 +379,11 @@ const blank=v=>v===''||v==null;
 function fmtSet(s){if(!blank(s.t))return (blank(s.w)?'':s.w+'kg ')+s.t+'s';const w=s.w===''||s.w==null?'':String(s.w);const r=s.r===''||s.r==null?'':String(s.r);if(w&&r)return w+'×'+r;if(r)return 'BW×'+r;if(w)return w+' kg';return ''}
 
 /* storage */
-function load(){try{const s=localStorage.getItem(KEY);if(s){const d=JSON.parse(s);return {workouts:Array.isArray(d.workouts)?d.workouts:[],weights:Array.isArray(d.weights)?d.weights:[],settings:Object.assign({plan:'double'},d.settings||{})}}}catch(e){}return {workouts:[],weights:[],settings:{plan:'double'}}}
+function load(){try{const s=localStorage.getItem(KEY);if(s){const d=JSON.parse(s);return {workouts:Array.isArray(d.workouts)?d.workouts:[],weights:Array.isArray(d.weights)?d.weights:[],settings:Object.assign({plan:'double'},d.settings||{}),deleted:d.deleted&&typeof d.deleted==='object'?d.deleted:{},settingsAt:d.settingsAt||0}}}catch(e){}return {workouts:[],weights:[],settings:{plan:'double'},deleted:{},settingsAt:0}}
 let db=load();
+takeSnap();
 const cloud={db:null,uid:null,ready:false,synced:new Map(),profile:'',chain:Promise.resolve(),pend:0,failed:false};
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}scheduleSync();return true}
+function persist(){stamp();try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}scheduleSync();return true}
 
 /* ---------- EXERCISE LIBRARY ---------- */
 /* Equipment the gym can have. Everything is assumed available unless unticked in Profile. */
@@ -920,7 +937,7 @@ function doneHTML(w){
 function renderLog(){
   if(timer&&tab!=='log')stopTimer(true);
   const d=draft;
-  let h='';{const d=daysSinceBackup();if(db.workouts.length&&(d===null||d>=10))h+=`<section class="panel savedbar">${d===null?'You haven\u2019t backed up yet.':`Last backup ${d} days ago.`} Your log lives only on this phone. <button class="linkbtn" data-act="backup-file">Back up now</button></section>`}
+  let h='';{const ab=acctBarHTML(),d=daysSinceBackup();if(ab)h+=ab;else if(!acct.user&&db.workouts.length&&(d===null||d>=10))h+=`<section class="panel savedbar">${d===null?'You haven\u2019t backed up yet.':`Last backup ${d} days ago.`} Your log lives only on this phone. <button class="linkbtn" data-act="backup-file">Back up now</button></section>`}
   h+=weekStrip();
   if(viewDay!=null&&!d.editingId){h+=previewHTML(viewDay);view.innerHTML=h;return}
   const sk=skipToday();
@@ -988,7 +1005,7 @@ function renderHistory(){
     {const n=list.filter(w=>!w.skipped).length,s=list.length-n;h+=`<p class="count">${n} workout${n===1?'':'s'} logged${s?`, ${s} skipped`:''}. Tap one to see the sets.</p>`}
     h+=list.map(w=>{if(w.skipped)return `<details class="wk skipped"><summary><span class="wk-date">${esc(niceDate(w.date))}</span><span class="wk-type">${esc(w.type)}</span><span class="wk-meta">Skipped</span></summary><div class="wk-body"><div class="btnrow"><button class="ghost sm danger" data-act="del" data-id="${w.id}">Delete</button></div></div></details>`;const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);return `<details class="wk" ${w.id===openId?'open':''}><summary><span class="wk-date">${esc(niceDate(w.date))}</span><span class="wk-type">${esc(w.type)}</span><span class="wk-meta">${w.exercises.length?`${w.exercises.length} exercises<br>${sets} sets`:'Cardio only'}</span></summary><div class="wk-body"><div>${w.exercises.map(e=>`<div class="line"><span class="ln">${esc(e.name)}</span><span class="ls">${esc(e.sets.map(fmtSet).join(', '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow"><button class="primary sm" data-act="copy" data-id="${w.id}">Copy for coach</button><button class="ghost sm" data-act="edit" data-id="${w.id}">Edit</button><button class="ghost sm danger" data-act="del" data-id="${w.id}">Delete</button></div></div></details>`}).join('');
   }
-  {const d=daysSinceBackup();h+=`<section class="panel"><h2>Backup</h2><p class="hint" style="margin:0 0 8px">Your log is saved only on this phone. Back up every week or two: save a backup file to Files or iCloud Drive, or copy it into Notes. ${d===null?'<b>No backup yet.</b>':`Last backup: <b>${d===0?'today':d+' day'+(d===1?'':'s')+' ago'}</b>.`}</p>
+  {const d=daysSinceBackup();h+=`<section class="panel"><h2>Backup</h2><p class="hint" style="margin:0 0 8px">${acct.user?'Your log is saved to your account automatically. You can also keep your own copy:':'Your log is saved only on this phone. Back up every week or two:'} save a backup file to Files or iCloud Drive, or copy it into Notes. ${d===null?'<b>No backup yet.</b>':`Last backup: <b>${d===0?'today':d+' day'+(d===1?'':'s')+' ago'}</b>.`}</p>
   <div class="btnrow"><button class="primary sm" data-act="backup-file">Save backup file</button><button class="ghost sm" data-act="backup">Copy backup</button></div>
   <div class="btnrow"><button class="ghost sm" data-act="restore-file">Restore from file</button><button class="ghost sm" data-act="restore">Restore from pasted text</button></div></section>`}
   view.innerHTML=h;
@@ -1342,7 +1359,7 @@ function renderProfile(){
   </div><div class="btnrow" style="margin-top:12px"><button class="primary sm" data-act="edit-profile">Edit profile</button></div></section>
   <section class="panel"><h2>This week</h2><div>${sched().map((s,i)=>row(DAYS[i],s)).join('')}</div></section>
   <section class="panel"><h2>Exercise library</h2><p class="hint" style="margin:0 0 10px">${LIB.length} exercises with muscles, equipment, form cues and alternatives, plus warm-ups, cardio and stretches.</p><button class="primary sm" data-act="open-lib">Browse the library</button></section>
-  ${equipHTML()}${prefsHTML()}`;
+  ${accountHTML()}${equipHTML()}${prefsHTML()}`;
 }
 
 /* ---------- navigation ---------- */
@@ -1375,6 +1392,7 @@ view.addEventListener('click',e=>{
   if(act==='go-log')return go('log');
   if(act==='edit-week'){openWizard('edit');return}
   if(act==='edit-profile'){openWizard('profile');return}
+  if(act.startsWith('acct-')&&acctAction(act))return;
   if(act==='plan'){db.settings.plan=b.dataset.plan;persist();if(tab!=='log'){if(!draft.editingId&&!setsFilled()){freshDraft();saveDraft()}go('log');return}if(!draft.editingId&&!setsFilled()){draft.type=sessionFor(draft.date);applyTemplate(true)}saveDraft();renderLog();toast(b.dataset.plan==='double'?'Double-part plan':b.dataset.plan==='single'?'Single-part plan':'My AI plan');return}
   if(act==='day'){
     const s=sched()[+b.dataset.day],mon=weekKey(today());
@@ -1425,12 +1443,215 @@ view.addEventListener('click',e=>{
   if(act==='bw-del'){const d=b.dataset.date;ask('Delete weigh-in?',niceDate(d)+' will be removed.','Delete',()=>{db.weights=db.weights.filter(x=>x.date!==d);persist();renderWeight()},true);return}
 });
 
-/* ---------- LOCAL STORAGE ONLY (this phone) ---------- */
+/* ---------- STORAGE: this phone, plus your account when signed in ---------- */
 const FIRST_RUN=(()=>{try{return !localStorage.getItem(KEY)}catch(e){return false}})();
 function daysSinceBackup(){const b=db.settings.lastBackup;return b?Math.floor((new Date(today()+'T00:00:00')-new Date(b+'T00:00:00'))/864e5):null}
-function setSync(){const tt=$('#apptitle');if(tt)tt.textContent=db.settings.name?`${db.settings.name}'s Logbook`:'Logbook';const el=$('#sync');if(!el)return;const d=daysSinceBackup();el.textContent='Saved on this phone · '+(d===null?'no backup yet':d===0?'backed up today':`last backup ${d} day${d===1?'':'s'} ago`)}
-function scheduleSync(){setSync()}
+
+/* Change tracking: every workout / weigh-in / settings change gets a timestamp, deletions leave a marker,
+   so two devices can be merged without losing or resurrecting anything. */
+function snapOf(o){const c=Object.assign({},o);delete c.upd;delete c.at;return JSON.stringify(c)}
+var lastSnap;
+function takeSnap(){lastSnap={w:new Map(db.workouts.map(w=>[w.id,snapOf(w)])),b:new Map(db.weights.map(x=>[x.date,snapOf(x)])),s:JSON.stringify(db.settings)}}
+function stamp(){
+  if(!lastSnap){takeSnap();return}
+  const now=Date.now();db.deleted=db.deleted||{};
+  const ids=new Set();
+  for(const w of db.workouts){ids.add(w.id);if(lastSnap.w.get(w.id)!==snapOf(w)){w.upd=now;delete db.deleted[w.id]}}
+  for(const id of lastSnap.w.keys())if(!ids.has(id))db.deleted[id]=now;
+  const ds=new Set();
+  for(const x of db.weights){ds.add(x.date);if(lastSnap.b.get(x.date)!==snapOf(x)){x.at=now;delete db.deleted['w:'+x.date]}}
+  for(const d of lastSnap.b.keys())if(!ds.has(d))db.deleted['w:'+d]=now;
+  if(lastSnap.s!==JSON.stringify(db.settings))db.settingsAt=now;
+  takeSnap();
+}
+function mergeData(a,b){
+  if(!b)return a;
+  const del=Object.assign({},b.deleted||{});for(const [k,v] of Object.entries(a.deleted||{}))if(!(del[k]>=v))del[k]=v;
+  const tW=w=>w.upd||w.created||0,wm=new Map();
+  for(const w of [...(b.workouts||[]),...(a.workouts||[])]){const o=wm.get(w.id);if(!o||tW(w)>=tW(o))wm.set(w.id,w)}
+  const workouts=[...wm.values()].filter(w=>!(del[w.id]>=tW(w)));
+  const bm=new Map();
+  for(const x of [...(b.weights||[]),...(a.weights||[])]){const o=bm.get(x.date);if(!o||(x.at||0)>=(o.at||0))bm.set(x.date,x)}
+  const weights=[...bm.values()].filter(x=>!(del['w:'+x.date]>=(x.at||0)));
+  const sa=a.settingsAt||0,sb=b.settingsAt||0;
+  const aSet=!!(a.settings&&a.settings.height),bSet=!!(b.settings&&b.settings.height);
+  const useB=bSet&&(!aSet||sb>sa);
+  const settings=Object.assign({plan:'double'},useB?b.settings:a.settings);
+  return {workouts,weights,settings,deleted:del,settingsAt:Math.max(sa,sb)||0};
+}
+const cleanData=d=>({workouts:d.workouts,weights:d.weights,settings:d.settings,deleted:d.deleted||{},settingsAt:d.settingsAt||0});
+
+/* ---------- account (Supabase) ---------- */
+const CFG=window.LOGBOOK_CONFIG||{};
+const acct={sb:null,user:null,state:'off',timer:null,busy:false,again:false,lastSync:0};
+const OWNER_KEY='gymlog-owner';
+function acctReady(){return !!acct.sb}
+function initAccount(){
+  if(!CFG.supabaseUrl||!CFG.supabaseKey||!window.supabase||!window.supabase.createClient)return;
+  try{acct.sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'logbook-auth'}})}catch(e){acct.sb=null;return}
+  acct.sb.auth.onAuthStateChange((ev,session)=>{
+    const u=session&&session.user||null,was=acct.user&&acct.user.id;
+    acct.user=u;
+    if(ev==='PASSWORD_RECOVERY'){showAuth('reset');return}
+    if(u&&u.id!==was)setTimeout(()=>onSignedIn(u),0);
+    if(!u){acct.state='off';setSync()}
+  });
+}
+function onSignedIn(u){
+  let owner=null;try{owner=localStorage.getItem(OWNER_KEY)}catch(e){}
+  if(owner&&owner!==u.id){db={workouts:[],weights:[],settings:{plan:'double'},deleted:{},settingsAt:0};takeSnap();try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}}
+  try{localStorage.setItem(OWNER_KEY,u.id)}catch(e){}
+  acct.state='syncing';setSync();
+  syncNow(true);
+}
+function scheduleSync(){setSync();if(!acct.user)return;clearTimeout(acct.timer);acct.timer=setTimeout(()=>syncNow(),1500)}
 function scheduleDraftSync(){}
+async function syncNow(first){
+  if(!acct.sb||!acct.user)return false;
+  if(acct.busy){acct.again=true;return false}
+  acct.busy=true;acct.state='syncing';setSync();
+  let ok=false;
+  try{
+    if(navigator.onLine===false)throw new Error('offline');
+    const uid=acct.user.id;
+    const {data:row,error}=await acct.sb.from('logbooks').select('data').eq('user_id',uid).maybeSingle();
+    if(error)throw error;
+    const remote=row&&row.data?cleanData(row.data):null;
+    stamp();
+    const merged=mergeData(cleanData(db),remote);
+    const changedLocal=JSON.stringify(merged)!==JSON.stringify(cleanData(db));
+    if(changedLocal){
+      db=merged;takeSnap();try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
+      const ae=document.activeElement,typing=ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName);
+      if(!typing&&!document.querySelector('.modal:not([hidden])'))render();
+    }
+    if(!remote||JSON.stringify(merged)!==JSON.stringify(remote)){
+      const {error:e2}=await acct.sb.from('logbooks').upsert({user_id:uid,data:merged,updated_at:new Date().toISOString()});
+      if(e2)throw e2;
+    }
+    acct.state='ok';acct.lastSync=Date.now();ok=true;
+    if(first){if(!draft.editingId&&!setsFilled()){freshDraft();saveDraft()}render();closeWelcomeIfOpen();if(!finishLoad.asked){finishLoad.asked=true;setTimeout(maybeCheckin,400)}}
+  }catch(e){acct.state=(navigator.onLine===false||String(e&&e.message).includes('fetch'))?'offline':'error';acct.err=e&&e.message||String(e)}
+  acct.busy=false;setSync();
+  if(tab==='profile'&&!document.querySelector('.modal:not([hidden])'))renderProfile();
+  if(acct.again){acct.again=false;setTimeout(()=>syncNow(),300)}
+  return ok;
+}
+function setSync(){
+  const tt=$('#apptitle');if(tt)tt.textContent=db.settings.name?`${db.settings.name}'s Logbook`:'Logbook';
+  const el=$('#sync');if(!el)return;
+  if(acct.user){el.textContent={syncing:'Syncing…',ok:'Saved to your account',offline:'Offline · will sync when you’re back online',error:'Not synced yet · open Profile › Account'}[acct.state]||'Signed in';return}
+  const d=daysSinceBackup();el.textContent='Saved on this phone · '+(d===null?'no backup yet':d===0?'backed up today':`last backup ${d} day${d===1?'':'s'} ago`);
+}
+window.addEventListener('online',()=>{if(acct.user)syncNow()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&acct.user&&Date.now()-acct.lastSync>20000)syncNow()});
+
+/* sign-in / sign-up screen */
+let authMode='signin',authFromWelcome=false,authMsg='';
+function authErr(e){const m=String(e&&e.message||e||'');
+  if(/invalid login/i.test(m))return 'Wrong email or password.';
+  if(/not confirmed/i.test(m))return 'Please confirm your email first: tap the link we sent you, then sign in here.';
+  if(/already registered|already exists/i.test(m))return 'An account with this email already exists. Sign in instead.';
+  if(/rate limit|too many/i.test(m))return 'Too many tries. Wait a few minutes and try again.';
+  if(/fetch|network/i.test(m))return 'No internet connection. Connect and try again.';
+  if(/password/i.test(m))return m;
+  return m||'Something went wrong. Try again.'}
+function showAuth(mode,fromWelcome){
+  if(!acctReady())return;
+  authMode=mode||'signin';authFromWelcome=!!fromWelcome;authMsg='';paintAuth();$('#auth').hidden=false;
+  setTimeout(()=>{const f=$('#auth-body input');if(f)f.focus()},60);
+}
+function hideAuth(){$('#auth').hidden=true}
+function paintAuth(){
+  const m=authMode,body=$('#auth-body');
+  const head=`<div class="authlogo" aria-hidden="true"><img src="icon-192.png" alt=""></div><h1 class="cond">Workout Logbook</h1>`;
+  const msg=authMsg?`<p class="authmsg" role="alert">${esc(authMsg)}</p>`:'';
+  if(m==='reset'){body.innerHTML=`${head}<p class="authsub">Choose a new password for your account.</p>${msg}
+    <form id="auth-form"><label>New password<input id="a-pass" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></label>
+    <button class="primary" type="submit">Save new password</button></form>`;return}
+  if(m==='forgot'){body.innerHTML=`${head}<p class="authsub">Enter your email and we’ll send you a link to set a new password.</p>${msg}
+    <form id="auth-form"><label>Email<input id="a-email" type="email" autocomplete="email" required></label>
+    <button class="primary" type="submit">Send reset link</button></form>
+    <p class="authalt"><button class="linkbtn" data-auth="signin">Back to sign in</button></p>`;return}
+  if(m==='sent'){body.innerHTML=`${head}${msg}<button class="primary" data-auth="signin">Go to sign in</button>`;return}
+  const up=m==='signup';
+  body.innerHTML=`${head}<p class="authsub">${up?'Create a free account so your workouts are saved safely and follow you to any phone.':'Sign in to load your workouts on this phone.'}</p>
+  <div class="authtabs" role="tablist"><button role="tab" aria-selected="${!up}" data-auth="signin">Sign in</button><button role="tab" aria-selected="${up}" data-auth="signup">Create account</button></div>${msg}
+  <form id="auth-form" novalidate>
+    <label>Email<input id="a-email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" required></label>
+    <label>Password<input id="a-pass" type="password" autocomplete="${up?'new-password':'current-password'}" ${up?'minlength="8" placeholder="At least 8 characters"':''} required></label>
+    <button class="primary" type="submit">${up?'Create account':'Sign in'}</button>
+  </form>
+  ${up?'':'<p class="authalt"><button class="linkbtn" data-auth="forgot">Forgot password?</button></p>'}
+  <p class="authalt">${authFromWelcome?'<button class="linkbtn" data-auth="local">Use without an account</button>':'<button class="linkbtn" data-auth="close">Not now</button>'}</p>
+  <p class="authnote">Your workouts are private: only you can see them when signed in.</p>`;
+}
+$('#auth').addEventListener('click',e=>{
+  const b=e.target.closest('[data-auth]');if(!b)return;e.preventDefault();const a=b.dataset.auth;
+  const em=$('#a-email'),keep=em?em.value:'';
+  if(a==='close'){hideAuth();return}
+  if(a==='local'){hideAuth();showWelcome(true);return}
+  authMode=a;authMsg='';paintAuth();const e2=$('#a-email');if(e2&&keep)e2.value=keep;
+});
+$('#auth').addEventListener('submit',async e=>{
+  e.preventDefault();const btn=e.target.querySelector('button[type=submit]');
+  const email=($('#a-email')?$('#a-email').value:'').trim(),pass=$('#a-pass')?$('#a-pass').value:'';
+  const fail=t=>{authMsg=t;const keep=email;paintAuth();const f=$('#a-email');if(f)f.value=keep};
+  if(authMode!=='reset'&&!/^\S+@\S+\.\S+$/.test(email))return fail('Enter a valid email address.');
+  if((authMode==='signup'||authMode==='reset')&&pass.length<8)return fail('Use a password with at least 8 characters.');
+  if(authMode==='signin'&&!pass)return fail('Enter your password.');
+  btn.disabled=true;btn.textContent='Please wait…';
+  const redirect=location.origin+location.pathname;
+  try{
+    if(authMode==='signin'){const {error}=await acct.sb.auth.signInWithPassword({email,password:pass});if(error)throw error;hideAuth();toast('Signed in')}
+    else if(authMode==='signup'){const {data,error}=await acct.sb.auth.signUp({email,password:pass,options:{emailRedirectTo:redirect}});if(error)throw error;
+      if(data&&data.user&&Array.isArray(data.user.identities)&&!data.user.identities.length)throw new Error('already registered');
+      if(data&&data.session){hideAuth();toast('Account created')}else{authMode='sent';authMsg=`We sent a confirmation link to ${email}. Tap it, then come back here and sign in.`;paintAuth()}}
+    else if(authMode==='forgot'){const {error}=await acct.sb.auth.resetPasswordForEmail(email,{redirectTo:redirect});if(error)throw error;authMode='sent';authMsg=`If ${email} has an account, a reset link is on its way. Open it, set a new password, then sign in here.`;paintAuth()}
+    else if(authMode==='reset'){const {error}=await acct.sb.auth.updateUser({password:pass});if(error)throw error;hideAuth();toast('Password changed');try{history.replaceState(null,'',location.pathname)}catch(e){}}
+  }catch(err){fail(authErr(err))}
+});
+async function signOut(){
+  const ok=await syncNow();
+  const go2=async()=>{try{await acct.sb.auth.signOut()}catch(e){}
+    try{localStorage.removeItem(KEY);localStorage.removeItem(DKEY);localStorage.removeItem(OWNER_KEY)}catch(e){}
+    db={workouts:[],weights:[],settings:{plan:'double'},deleted:{},settingsAt:0};takeSnap();acct.user=null;acct.state='off';finishLoad.asked=false;
+    freshDraft();render();setSync();toast('Signed out');showAuth('signin',true)};
+  if(ok)ask('Sign out?','Your workouts stay safe in your account and are removed from this phone. Sign in again any time to get them back.','Sign out',go2,true);
+  else ask('Sign out without syncing?','Your latest changes couldn’t be saved to your account (no internet?). If you sign out now, those changes will be lost.','Sign out anyway',go2,true);
+}
+function deleteAccount(){
+  ask('Delete your account?','This permanently deletes your account and every workout and weigh-in saved in it. Save a backup file first if you want to keep a copy. This can’t be undone.','Delete account',async()=>{
+    try{const {error}=await acct.sb.rpc('delete_my_account');if(error)throw error}catch(e){toast('Couldn’t delete: '+authErr(e));return}
+    try{await acct.sb.auth.signOut()}catch(e){}
+    try{localStorage.removeItem(KEY);localStorage.removeItem(DKEY);localStorage.removeItem(OWNER_KEY)}catch(e){}
+    db={workouts:[],weights:[],settings:{plan:'double'},deleted:{},settingsAt:0};takeSnap();acct.user=null;acct.state='off';finishLoad.asked=false;freshDraft();render();setSync();toast('Account deleted');showAuth('signup',true)},true);
+}
+function accountHTML(){
+  if(!acctReady())return '';
+  if(!acct.user)return `<section class="panel"><h2>Account</h2><p class="hint" style="margin:0 0 10px">Right now your log is saved only on this phone. Create a free account to keep it safe in the cloud and use it on any phone.</p><div class="btnrow"><button class="primary sm" data-act="acct-signup">Create account</button><button class="ghost sm" data-act="acct-signin">Sign in</button></div></section>`;
+  const t=acct.lastSync?new Date(acct.lastSync).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'';
+  const st={syncing:'Syncing…',ok:`Synced${t?' at '+t:''}`,offline:'Offline. Changes will sync when you’re back online.',error:'Couldn’t sync. Tap Sync now to try again.'}[acct.state]||'';
+  return `<section class="panel"><h2>Account</h2><div class="row-line"><span>Signed in as</span><span class="kg" style="overflow-wrap:anywhere">${esc(acct.user.email||'')}</span></div><div class="row-line"><span>Status</span><span class="kg">${esc(st)}</span></div>
+  <div class="btnrow" style="margin-top:12px"><button class="primary sm" data-act="acct-sync">Sync now</button><button class="ghost sm" data-act="acct-signout">Sign out</button></div>
+  <p class="hint"><button class="linkbtn danger" data-act="acct-delete">Delete my account</button></p></section>`;
+}
+function acctBarHTML(){
+  if(!acctReady()||acct.user||!db.workouts.length)return null;
+  let later=null;try{later=localStorage.getItem('gymlog-acct-later')}catch(e){}
+  if(later&&Date.now()-Number(later)<7*864e5)return null;
+  return `<section class="panel savedbar">Your log lives only on this phone. Create a free account to keep it safe and synced. <button class="linkbtn" data-act="acct-signup">Create account</button> · <button class="linkbtn" data-act="acct-later">Not now</button></section>`;
+}
+function acctAction(act){
+  if(act==='acct-signup'){showAuth('signup');return true}
+  if(act==='acct-signin'){showAuth('signin');return true}
+  if(act==='acct-sync'){syncNow().then(ok=>toast(ok?'Synced':'Couldn’t sync right now'));return true}
+  if(act==='acct-signout'){signOut();return true}
+  if(act==='acct-delete'){deleteAccount();return true}
+  if(act==='acct-later'){try{localStorage.setItem('gymlog-acct-later',String(Date.now()))}catch(e){}renderLog();return true}
+  return false;
+}
+
 function markBackup(){db.settings.lastBackup=today();persist();setSync();if(tab==='history')renderHistory();if(tab==='log')renderLog()}
 function backupText(){return JSON.stringify({app:'workout-logbook',exported:new Date().toISOString(),workouts:db.workouts,weights:db.weights,settings:db.settings})}
 async function saveBackupFile(){
@@ -1440,7 +1661,7 @@ async function saveBackupFile(){
 }
 function restoreText(v,after){
   try{const d=JSON.parse(String(v||'').trim());if(!d||!Array.isArray(d.workouts)||!Array.isArray(d.weights))throw 0;
-    db={workouts:d.workouts,weights:d.weights,settings:Object.assign({plan:'double'},d.settings||{})};db.settings.lastBackup=today();persist();closeModal();
+    db={workouts:d.workouts,weights:d.weights,settings:Object.assign({plan:'double'},d.settings||{}),deleted:db.deleted||{},settingsAt:db.settingsAt||0};db.settings.lastBackup=today();persist();closeModal();
     toast(`Restored ${db.workouts.filter(w=>!w.skipped).length} workouts`);if(!draft.editingId&&!setsFilled()){freshDraft();saveDraft()}render();setSync();if(after)after();setTimeout(maybeCheckin,400);return true}
   catch(e){toast('That isn’t a valid backup. Copy it again and paste the whole text.');return false}
 }
@@ -1448,13 +1669,18 @@ function restoreFromFile(){const inp=document.createElement('input');inp.type='f
 let welcoming=false;
 function showWelcome(){
   welcoming=true;
-  openModal({title:'Welcome to your Workout Logbook',text:'Moving from the logbook in Claude? Open it, go to History, tap Copy backup, then paste it here to bring all your workouts, weight and settings. Otherwise tap Start fresh.',area:{value:'',placeholder:'Paste your backup here'},ok:{label:'Restore my history',fn:v=>{if(restoreText(v))welcoming=false}},cancel:'Start fresh'});
+  openModal({title:'Welcome to your Workout Logbook',text:'Moving from the logbook in Claude? Open it, go to History, tap Copy backup, then paste it here to bring all your workouts, weight and settings. Otherwise tap Start fresh.',area:{value:'',placeholder:'Paste your backup here'},ok:{label:'Restore my history',fn:v=>{if(restoreText(v))welcoming=false}},alt:acctReady()?{label:'Sign in instead',fn:()=>{welcoming=false;closeModal();showAuth('signin',true)}}:null,cancel:'Start fresh'});
 }
+function closeWelcomeIfOpen(){if(welcoming){welcoming=false;closeModal()}}
 $('#m-cancel').onclick=()=>{closeModal();if(welcoming){welcoming=false;setTimeout(maybeCheckin,200)}};
 function initApp(){
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  initAccount();
   setSync();
-  if(FIRST_RUN){finishLoad(false);showWelcome()}else finishLoad(true);
+  if(FIRST_RUN){finishLoad(false);
+    if(acctReady())acct.sb.auth.getSession().then(({data})=>{if(!(data&&data.session))showAuth('signup',true)}).catch(()=>showAuth('signup',true));
+    else showWelcome()}
+  else finishLoad(true);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 function finishLoad(ok){
