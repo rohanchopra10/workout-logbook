@@ -1027,7 +1027,7 @@ function saveWorkout(force){
   if(!persist())return;
   freshDraft();saveDraft();openId=rec.id;
   go('history');
-  toast(existing?'Changes saved':'Workout saved. Tap Copy for Claude for feedback.');
+  toast(existing?'Changes saved':'Workout saved. Tap Copy to get coach feedback.');
   if(rec.exercises.length||rec.cardio)getFeedback(rec.id);
 }
 
@@ -1038,7 +1038,7 @@ function renderHistory(){
   if(!list.length)h+=`<div class="empty"><p>No workouts yet.</p><button class="primary" data-act="go-log">Log a workout</button></div>`;
   else{
     {const n=list.filter(w=>!w.skipped).length,s=list.length-n;h+=`<p class="count">${n} workout${n===1?'':'s'} logged${s?`, ${s} skipped`:''}. Tap one to see the sets.</p>`}
-    h+=list.map(w=>{if(w.skipped)return `<details class="wk skipped"><summary><span class="wk-date">${esc(niceDate(w.date))}</span><span class="wk-type">${esc(w.type)}</span><span class="wk-meta">Skipped</span></summary><div class="wk-body"><div class="btnrow"><button class="ghost sm danger" data-act="del" data-id="${w.id}">Delete</button></div></div></details>`;const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);return `<details class="wk" ${w.id===openId?'open':''}><summary><span class="wk-date">${esc(niceDate(w.date))}</span><span class="wk-type">${esc(w.type)}</span><span class="wk-meta">${w.exercises.length?`${w.exercises.length} exercises<br>${sets} sets`:'Cardio only'}</span></summary><div class="wk-body"><div>${w.exercises.map(e=>`<div class="line"><span class="ln">${esc(e.name)}</span><span class="ls">${esc(e.sets.map(fmtSet).join(', '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow"><button class="primary sm" data-act="copy" data-id="${w.id}">Copy for coach</button><button class="ghost sm" data-act="edit" data-id="${w.id}">Edit</button><button class="ghost sm danger" data-act="del" data-id="${w.id}">Delete</button></div></div></details>`}).join('');
+    h+=list.map(w=>{if(w.skipped)return `<details class="wk skipped"><summary><span class="wk-date">${esc(niceDate(w.date))}</span><span class="wk-type">${esc(w.type)}</span><span class="wk-meta">Skipped</span></summary><div class="wk-body"><div class="btnrow"><button class="ghost sm danger" data-act="del" data-id="${w.id}">Delete</button></div></div></details>`;const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);return `<details class="wk" ${w.id===openId?'open':''}><summary><span class="wk-date">${esc(niceDate(w.date))}</span><span class="wk-type">${esc(w.type)}</span><span class="wk-meta">${w.exercises.length?`${w.exercises.length} exercises<br>${sets} sets`:'Cardio only'}</span></summary><div class="wk-body"><div>${w.exercises.map(e=>`<div class="line"><span class="ln">${esc(e.name)}</span><span class="ls">${esc(e.sets.map(fmtSet).join(', '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow"><button class="primary sm" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost sm" data-act="edit" data-id="${w.id}">Edit</button></div></div></details>`}).join('');
   }
   {const d=daysSinceBackup();h+=`<section class="panel"><h2>Backup</h2><p class="hint" style="margin:0 0 8px">${acct.user?'Your log is saved to your account automatically. You can also keep your own copy:':'Your log is saved only on this phone. Back up every week or two:'} save a backup file to Files or iCloud Drive, or copy it into Notes. ${d===null?'<b>No backup yet.</b>':`Last backup: <b>${d===0?'today':d+' day'+(d===1?'':'s')+' ago'}</b>.`}</p>
   <div class="btnrow"><button class="primary sm" data-act="backup-file">Save backup file</button><button class="ghost sm" data-act="backup">Copy backup</button></div>
@@ -1053,8 +1053,7 @@ function fmtFb(t){
 }
 function fbInner(w){
   const f=w.feedback;
-  return `<div class="fbtitle"><span>Coach feedback</span></div>${f&&f.text?fmtFb(f.text):'<p class="hint" style="margin:0 0 8px">Tap <b>Copy for Claude</b>, paste it into any Claude chat, then paste Claude’s reply back here to keep it with this workout.</p>'}
-  <div class="btnrow"><button class="primary sm" data-act="fb-copy" data-id="${w.id}">Copy for Claude</button><button class="ghost sm" data-act="fb-paste" data-id="${w.id}">${f&&f.text?'Replace feedback':'Paste Claude’s reply'}</button></div>`;
+  return `<div class="fbtitle"><span>Coach feedback</span></div>${f&&f.text?fmtFb(f.text):`<p class="hint" style="margin:0 0 8px">Tap <b>Copy</b> below, paste it into any Claude chat, then paste Claude’s reply here to keep it with this workout.</p><div class="btnrow"><button class="ghost sm" data-act="fb-paste" data-id="${w.id}">Paste Claude’s reply</button></div>`}`;
 }
 function fbHTML(w){if(w.skipped)return '';return `<div class="fb" id="fb-${w.id}">${fbInner(w)}</div>`}
 function paintFb(id){const el=document.getElementById('fb-'+id),w=db.workouts.find(x=>x.id===id);if(el&&w)el.innerHTML=fbInner(w)}
