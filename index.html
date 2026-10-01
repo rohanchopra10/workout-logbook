@@ -392,7 +392,7 @@ const TEMPLATES={
 const ROT_EPOCH='2026-01-05';
 function rotationFor(d){const a=new Date(weekKey(d||today())+'T00:00:00'),b=new Date(ROT_EPOCH+'T00:00:00');const w=Math.round((a-b)/(7*864e5));return ((w%3)+3)%3}
 const ROT_NAME=['A','B','C'];
-const ABS=new Set(['Captain\'s Chair Knee Raise','Russian Twist','Heel Taps','Cable Crunch','Side Plank','Hanging Knee Raise','Cable Side Bend','Reverse Crunch','Pallof Press','Decline Bench Crunch','Lying Leg Raise','Plank','Cable Woodchop','Captain\'s Chair Knee Raise','Ab Coaster','Heel Taps','Russian Twist','Leg Raises','Machine Crunch','Kneeling Ab Crunch Machine'].map(n=>n.toLowerCase()));
+const ABS=new Set(['Captain\'s Chair Knee Raise','Russian Twist','Heel Taps','Cable Crunch','Side Plank','Hanging Knee Raise','Cable Side Bend','Reverse Crunch','Pallof Press','Decline Bench Crunch','Lying Leg Raise','Plank','Cable Woodchop','Captain\'s Chair Knee Raise','Ab Coaster','Heel Taps','Russian Twist','Leg Raises','Ab Crunch Machine','Kneeling Ab Crunch Machine'].map(n=>n.toLowerCase()));
 const EXTRA=['Single-Arm Cable Pulldown','Chest-Supported Machine Row','Cable Crossover','Flat DB Press','Lying Leg Curl','Cable Front Raise','Rope Pushdown','Machine Preacher Curl','EZ-Bar Skull Crusher','Pallof Press','Cable Side Bend','Cable Woodchop','Bulgarian Split Squat','Walking Lunges','Standing Calf Raise','Cable Pull-Through','One-Arm DB Row','T-Bar Row','Bayesian Cable Curl','Cross-Body Hammer Curl','Cable Woodchop','Hanging Knee Raise','Captain\'s Chair Knee Raise','Plank','Cable Crunch','Ab Coaster','Decline Bench Crunch','Lying Leg Raise','Heel Taps','Russian Twist','Machine Lateral Raise','Assisted Dips'];
 
 const $=s=>document.querySelector(s);
@@ -624,7 +624,7 @@ const LIB_SRC=[
   ['Donkey Calf Raise','calf',2,1,'']]],
  ['Core','Upper Abs','upper-abs','core','Upper abs','Obliques','Curl your ribs toward your hips, exhale hard, don\'t pull with the arms.','Hinging at the hips instead of curling the spine.',[
   ['Cable Crunch','cable',1,1,'','Kneeling Cable Crunch'],
-  ['Machine Crunch','m-ab',1,1,'','Machine Ab Crunch, Ab Crunch Machine'],
+  ['Ab Crunch Machine','m-ab',1,1,'','Machine Crunch, Machine Ab Crunch, Seated Ab Crunch Machine','Sit with your chest against the pads, hold the handles and curl your ribs down toward your hips. Pause, then come up slowly.'],
   ['Kneeling Ab Crunch Machine','m-ab',1,1,'','Kneeling Crunch Machine, Kneeling Machine Crunch','Kneel on the pad, hold the handles and curl your ribs down toward your hips. Pause, then come up slowly.'],
   ['Weighted Crunch','db',1,1,''],
   ['Crunch','',1,1,'','Crunches'],
