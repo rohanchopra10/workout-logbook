@@ -699,6 +699,7 @@ for(const [cat,sub,pattern,kind,primary,secondary,cue,mistake,items] of LIB_SRC)
   }
 }
 const libFor=n=>LIBMAP.get(norm(n))||null;
+function isAbs(n){if(ABS.has(norm(n)))return true;const e=libFor(n);if(e&&e.cat==='Core')return true;return /\b(ab|abs|crunch|knee raise|leg raise|captain|plank|woodchop|side bend|russian twist|sit-?up)\b/i.test(String(n||''))}
 const canonName=n=>{const e=libFor(n);return e?e.name:String(n||'').trim()};
 LIB.filter(e=>e.timed).forEach(e=>TIMED.add(norm(e.name)));
 LIB.filter(e=>e.cat==='Core').forEach(e=>ABS.add(norm(e.name)));
@@ -942,7 +943,7 @@ function previewHTML(i){
   let body='';
   if(s==='Rest / walk')body='<p class="hint" style="margin:0">Rest day. An easy walk is a good idea.</p>';
   else{const taken=new Set();const list=templateFor(s,date).map(e=>{const r=resolveExercise(e.name,taken);taken.add(norm(r.name));return r});
-    body=list.map(r=>{const t=targetFor(r.name),l=lastFor(r.name,null,today());return `<div class="line"><span class="ln">${esc(r.name)}${ABS.has(norm(r.name))?' <span class="lmeta">(abs)</span>':''}</span>${t?`<span class="lmeta">${t.sets} × ${esc(t.reps)}${t.timed&&!/sec/.test(t.reps)?' sec':''} · rest ${esc(t.rest)}</span>`:''}<span class="ls">${l?`Last time: ${esc(l.sets.map(fmtSet).join('  '))}`:'First time'}</span>${r.note?`<span class="xnote">${esc(r.note)}</span>`:''}</div>`}).join('')}
+    body=list.map(r=>{const t=targetFor(r.name),l=lastFor(r.name,null,today());return `<div class="line"><span class="ln">${esc(r.name)}${isAbs(r.name)?' <span class="lmeta">(abs)</span>':''}</span>${t?`<span class="lmeta">${t.sets} × ${esc(t.reps)}${t.timed&&!/sec/.test(t.reps)?' sec':''} · rest ${esc(t.rest)}</span>`:''}<span class="ls">${l?`Last time: ${esc(l.sets.map(fmtSet).join('  '))}`:'First time'}</span>${r.note?`<span class="xnote">${esc(r.note)}</span>`:''}</div>`}).join('')}
   return `<div class="todayrow"><div><span class="pickday">${DN[i]}'s plan · preview</span><h2 style="margin:0;font-size:24px">${esc(s)}</h2></div><button class="ghost sm" data-act="view-close">Back to today</button></div>
   <section class="panel">${body}</section>
   ${s!=='Rest / walk'?`<button class="primary" data-act="view-do" data-v="${esc(s)}">Do this workout today</button><p class="hint" style="text-align:center">Only if you want to switch. It swaps with today's workout for this week.</p>`:''}`;
@@ -985,8 +986,9 @@ function renderLog(){
    if(sv)h+=`<section class="panel savedbar"><b>Adding to today's ${esc(d.type)}.</b> Log only what's new, then tap Save. <button class="linkbtn" data-act="more-cancel">Cancel</button></section>`}
   if(!d.more)h+=warmPanel();
   if(!d.exercises.length)h+=`<p class="hint" style="margin:0 0 12px">${d.type==='Rest / walk'?'Rest day. Enjoy an easy walk and log it under Cardio if you like.':'Add your exercises below. Grey numbers show what you did last time.'}</p>`;
+  if(d.type!=='Core + Cardio'){const a=d.exercises.filter(x=>!isAbs(x.name)),b=d.exercises.filter(x=>isAbs(x.name)),o=[...a,...b];if(o.some((x,k)=>x!==d.exercises[k])){d.exercises=o;try{localStorage.setItem(DKEY,JSON.stringify(d))}catch(e){}}}
   let absShown=false;
-  d.exercises.forEach((ex,i)=>{if(!absShown&&d.type!=='Core + Cardio'&&ABS.has(norm(ex.name))){absShown=true;h+=`<button class="add-ex" data-act="add-ex" data-at="${i}">Add exercise</button><h2 class="abs-h">Abs</h2><p class="hint" style="margin:-4px 2px 10px">3 sets each, slow and controlled. Skip after a very hard leg day if you need to.</p>`}h+=exCard(ex,i)});
+  d.exercises.forEach((ex,i)=>{if(!absShown&&d.type!=='Core + Cardio'&&isAbs(ex.name)){absShown=true;h+=`<button class="add-ex" data-act="add-ex" data-at="${i}">Add exercise</button><h2 class="abs-h">Abs</h2><p class="hint" style="margin:-4px 2px 10px">3 sets each, slow and controlled. Skip after a very hard leg day if you need to.</p>`}h+=exCard(ex,i)});
   h+=`<button class="add-ex" data-act="add-ex">${absShown?'Add abs exercise':'Add exercise'}</button>
   <section class="panel">${cardioHTML()}
   <label style="margin:0">Notes<textarea id="f-notes" rows="3" placeholder="How it felt, machine busy, any pain">${esc(d.notes)}</textarea></label></section>
