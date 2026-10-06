@@ -392,7 +392,7 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .calrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .cm{display:flex;flex-direction:column;align-items:center;gap:12px}
 .cmh{font:600 15px "Manrope",system-ui,sans-serif;color:#ECECEA}
-.cg{display:grid;grid-template-columns:repeat(7,13px);gap:3px 1px;justify-items:center;align-items:center}
+.cg{display:grid;grid-template-columns:repeat(7,14px);gap:2px 1px;justify-items:center;align-items:center}
 .cd{width:5px;height:5px;border-radius:50%;background:#5B5F72;display:block;padding:0;border:0;min-height:0;margin:4px 0}
 .cd.e{background:transparent}
 .cd.fut{background:#3A3D4F}
@@ -402,6 +402,15 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 button.cd{cursor:pointer}
 .calleg{display:flex;justify-content:center;gap:16px;margin-top:14px;font-size:12px;color:var(--muted)}
 .calleg span{display:flex;align-items:center;gap:6px}.calleg .cd{margin:0}
+
+.calnav{display:flex;align-items:center;justify-content:space-between;margin:-6px 0 12px}
+.iconbtn.sm{width:38px;height:38px;border-radius:12px;background:var(--field)}.iconbtn:disabled{opacity:.35}
+.cdb{width:14px;height:16px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:0;background:none;min-height:0;border-radius:50%}
+.cg .cd{margin:0}
+.cdb.now .cd{outline:1.5px solid #ECECEA;outline-offset:2px}
+.cdb.sel{background:rgba(251,81,2,.28);box-shadow:0 0 0 1.5px var(--accent)}
+.dayhead{display:flex;align-items:center;gap:12px}
+.dayw .wk-body{margin-top:12px}
 </style>
 </head>
 <body>
@@ -1185,38 +1194,39 @@ function saveWorkout(force){
 /* ---------- HISTORY ---------- */
 function workoutText(w){const L=[`${niceDate(w.date)}: ${w.type}${w.skipped?' (skipped)':''}`];w.exercises.forEach(e=>L.push(`${e.name}: ${e.sets.map(fmtSet).join(', ')}`));if(w.cardio)L.push('Cardio: '+w.cardio);if(w.notes)L.push('Notes: '+w.notes);return L.join('\n')}
 
-function calHTML(){
+let histDate=null,calOff=0;
+function calHTML(sel){
   const done=new Map(),skipped=new Set();
   db.workouts.forEach(w=>{if(w.skipped)skipped.add(w.date);else if(!done.has(w.date))done.set(w.date,w.id)});
   const first=[...db.workouts].map(w=>w.date).sort()[0],t=today(),now=new Date();
-  const months=[-2,-1,0].map(k=>new Date(now.getFullYear(),now.getMonth()+k,1));
+  const months=[-2,-1,0].map(k=>new Date(now.getFullYear(),now.getMonth()+k+calOff,1));
   const m=months.map(md=>{const y=md.getFullYear(),mo=md.getMonth(),days=new Date(y,mo+1,0).getDate(),lead=(md.getDay()+6)%7;let cells='';
-    for(let i=0;i<lead;i++)cells+='<span class="cd e"></span>';
-    for(let d=1;d<=days;d++){const k=ymd(new Date(y,mo,d));let cls='',lab='';
+    for(let i=0;i<lead;i++)cells+='<span class="cdb"></span>';
+    for(let d=1;d<=days;d++){const dt=new Date(y,mo,d),k=ymd(dt);let cls='',lab='';
       if(done.has(k)){cls='ok';lab='workout done'}
-      else if(k<t&&first&&k>=first){cls='bad';lab=skipped.has(k)?'skipped':sched(k)[(new Date(y,mo,d).getDay()+6)%7]==='Rest / walk'?'rest day':'missed'}
+      else if(k<t&&first&&k>=first){cls='bad';lab=skipped.has(k)?'skipped':sched(k)[(dt.getDay()+6)%7]==='Rest / walk'?'rest day':'missed'}
       else if(k>t)cls='fut';
-      if(k===t)cls+=' now';
-      const title=`${new Date(y,mo,d).toLocaleDateString(undefined,{day:'numeric',month:'short'})}${lab?': '+lab:''}`;
-      cells+=done.has(k)?`<button class="cd ${cls}" data-act="cal-open" data-id="${done.get(k)}" aria-label="${title}" title="${title}"></button>`:`<span class="cd ${cls}" title="${title}"${lab?` aria-label="${title}"`:''}></span>`}
-    return `<div class="cm"><div class="cmh">${md.toLocaleDateString(undefined,{month:'short'})}</div><div class="cg">${cells}</div></div>`}).join('');
-  return `<section class="panel calp"><div class="calrow">${m}</div><div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Missed, skipped or rest</span></div></section>`;
+      const title=`${dt.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}${lab?': '+lab:''}`;
+      cells+=k>t?`<span class="cdb"><i class="cd fut"></i></span>`:`<button class="cdb${k===sel?' sel':''}${k===t?' now':''}" data-act="cal-day" data-date="${k}" aria-label="${title}" aria-pressed="${k===sel}"><i class="cd ${cls}"></i></button>`}
+    return `<div class="cm"><div class="cmh">${md.toLocaleDateString(undefined,{month:'short'})}${md.getFullYear()!==now.getFullYear()?' '+String(md.getFullYear()).slice(2):''}</div><div class="cg">${cells}</div></div>`}).join('');
+  return `<section class="panel calp"><div class="calnav"><button class="iconbtn sm" data-act="cal-prev" aria-label="Earlier months">${ico('back',18)}</button><span class="mut sm2">Tap a day to see the workout</span><button class="iconbtn sm" data-act="cal-next" aria-label="Later months" ${calOff>=0?'disabled':''}>${ico('chev',18)}</button></div><div class="calrow">${m}</div><div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Missed, skipped or rest</span></div></section>`;
+}
+function dayHTML(date){
+  const ws=db.workouts.filter(w=>w.date===date).sort((a,b)=>(a.created||0)-(b.created||0)),dt=new Date(date+'T00:00:00'),prW=new Set(allPRs().events.map(p=>p.wid));
+  const head=`<div class="dayhead"><span class="dblk"><span class="xs">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="num">${dt.getDate()}</span></span><div class="f1"><div class="xs">${esc(dt.toLocaleDateString(undefined,{month:'long',year:'numeric'}))}</div>`;
+  if(!ws.length){const rest=sched(date)[(dt.getDay()+6)%7]==='Rest / walk',fut=date>today();
+    return `<section class="panel">${head}<h2 style="margin:2px 0 0">${fut?'Upcoming':rest?'Rest day':date===today()?'Nothing logged yet':'No workout'}</h2></div></div><p class="mut sm2" style="margin:10px 0 0">${rest?'Rest days count toward recovery. An easy walk is a good idea.':date===today()?'Start today’s workout from the Log tab.':'Nothing was logged on this day.'}</p></section>`}
+  return ws.map(w=>{if(w.skipped)return `<section class="panel">${head}<h2 style="margin:2px 0 0">${esc(w.type)}</h2><span class="mut sm2">Skipped</span></div></div><div class="btnrow"><button class="ghost sm danger" data-act="del" data-id="${w.id}">Remove skip</button></div></section>`;
+    const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);
+    return `<section class="panel dayw">${head}<h2 style="margin:2px 0 0">${esc(w.type)}</h2><span class="mut sm2">${w.exercises.length?`${plur(w.exercises.length,'exercise')} · ${plur(sets,'set')}`:'Cardio only'}${w.mins?' · '+w.mins+' min':''}</span></div>${prW.has(w.id)?'<span class="badge">PR</span>':''}</div>
+    <div class="wk-body">${w.exercises.map(e=>`<div class="line2"><b>${esc(e.name)}</b><span class="num">${esc(e.sets.map(fmtSet).join(' · '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow two"><button class="primary" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost" data-act="edit" data-id="${w.id}">${ico('edit',16)} Edit</button></div></section>`}).join('');
 }
 function renderHistory(){
   const all=sorted();
   if(!all.length){view.innerHTML=`<div class="center-col" style="margin-top:90px"><div class="emptyicon">${DB_ICON(70,'#3A3D4F')}</div><h2>No workouts yet</h2><p class="mut" style="margin:0;max-width:260px">Start your first workout and it will appear here.</p><button class="primary bigbtn" style="width:220px" data-act="start-workout">Start workout</button></div>`;return}
-  const chips=['All','Chest','Back','Shoulders','Legs','Arms'];
-  const match=w=>histFilter==='All'||(histFilter==='Arms'?/biceps|triceps|arms/i.test(w.type):new RegExp(histFilter,'i').test(w.type));
-  const list=all.filter(match),prW=new Set(allPRs().events.map(p=>p.wid));
-  let h=calHTML()+`<div class="chips">${chips.map(c=>`<button class="chip2${c===histFilter?' on':''}" data-act="hist-filter" data-v="${c}">${c}</button>`).join('')}</div>`;
-  if(!list.length)h+=`<div class="empty"><p>No ${esc(histFilter)} workouts yet.</p></div>`;
-  let month='';
-  h+=list.map(w=>{const dt=new Date(w.date+'T00:00:00'),m=dt.toLocaleDateString(undefined,{month:'long',year:'numeric'});let pre='';if(m!==month){month=m;pre=`<div class="xs mhead">${esc(m)}</div>`}
-    const blk=`<span class="dblk"><span class="xs">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="num">${dt.getDate()}</span></span>`;
-    if(w.skipped)return pre+`<details class="wk skipped"><summary>${blk}<span class="wk-mid"><b>${esc(w.type)}</b><span class="mut sm2">Skipped</span></span><span class="mut">${ico('chev',18)}</span></summary><div class="wk-body"><div class="btnrow"><button class="ghost sm danger" data-act="del" data-id="${w.id}">Delete</button></div></div></details>`;
-    const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);
-    return pre+`<details class="wk" ${w.id===openId?'open':''}><summary>${blk}<span class="wk-mid"><b>${esc(w.type)}</b><span class="mut sm2">${w.exercises.length?`${plur(w.exercises.length,'exercise')} · ${plur(sets,'set')}`:'Cardio only'}</span></span>${prW.has(w.id)?'<span class="badge">PR</span>':''}<span class="mut chev">${ico('chev',18)}</span></summary><div class="wk-body"><div>${w.exercises.map(e=>`<div class="line2"><b>${esc(e.name)}</b><span class="num">${esc(e.sets.map(fmtSet).join(' · '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow two"><button class="primary" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost" data-act="edit" data-id="${w.id}">${ico('edit',16)} Edit</button></div></div></details>`}).join('');
-  view.innerHTML=h;
+  if(openId){const w=db.workouts.find(x=>x.id===openId);if(w){histDate=w.date;const now=new Date(),d=new Date(w.date+'T00:00:00');const diff=(now.getFullYear()-d.getFullYear())*12+now.getMonth()-d.getMonth();calOff=diff>2?-(diff-2):0}openId=null}
+  if(!histDate){const lw=all.find(w=>!w.skipped)||all[0];histDate=lw.date}
+  view.innerHTML=calHTML(histDate)+`<div id="daydetail">${dayHTML(histDate)}</div>`;
 }
 
 /* ---------- AI COACH FEEDBACK ---------- */
@@ -1967,7 +1977,9 @@ view.addEventListener('click',e=>{
   if(act==='go-weight'){go('weight');return}
   if(act==='open-records'){progView='records';go('progress');return}
   if(act==='rec-filter'){recFilter=b.dataset.v;renderProgress();return}
-  if(act==='cal-open'){openId=b.dataset.id;histFilter='All';renderHistory();const el=view.querySelector('details.wk[open]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return}
+  if(act==='cal-day'){histDate=b.dataset.date;view.querySelectorAll('.cdb.sel').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false')});b.classList.add('sel');b.setAttribute('aria-pressed','true');$('#daydetail').innerHTML=dayHTML(histDate);return}
+  if(act==='cal-prev'){calOff-=1;renderHistory();return}
+  if(act==='cal-next'){if(calOff<0)calOff+=1;renderHistory();return}
   if(act==='hist-filter'){histFilter=b.dataset.v;renderHistory();return}
   if(act==='prog-view'){progView=b.dataset.v;renderProgress();return}
   if(act==='open-settings'){profView='settings';renderProfile();window.scrollTo(0,0);return}
