@@ -1999,7 +1999,7 @@ view.addEventListener('click',e=>{
   if(act==='go-weight'){go('weight');return}
   if(act==='open-records'){progView='records';go('progress');return}
   if(act==='rec-filter'){recFilter=b.dataset.v;renderProgress();return}
-  if(act==='cal-day'){const sy=window.scrollY;histDate=b.dataset.date;view.querySelectorAll('.cdb.sel').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false')});b.classList.add('sel');b.setAttribute('aria-pressed','true');$('#daydetail').innerHTML=dayHTML(histDate);window.scrollTo(0,Math.min(sy,document.documentElement.scrollHeight-innerHeight));return}
+  if(act==='cal-day'){const sy=window.scrollY;histDate=b.dataset.date;view.querySelectorAll('.cday.sel,.cdb.sel').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false')});b.classList.add('sel');b.setAttribute('aria-pressed','true');$('#daydetail').innerHTML=dayHTML(histDate);window.scrollTo(0,Math.min(sy,document.documentElement.scrollHeight-innerHeight));return}
   if(act==='cal-prev'){calOff-=1;renderHistory();return}
   if(act==='cal-next'){if(calOff<0)calOff+=1;renderHistory();return}
   if(act==='hist-filter'){histFilter=b.dataset.v;renderHistory();return}
