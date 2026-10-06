@@ -386,6 +386,7 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .cbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
 .sp-tag{color:var(--muted);font-size:14px;margin-top:-8px}
 .pw{position:relative;display:block}.pw input{padding-right:52px}.pweye{position:absolute;right:4px;top:50%;transform:translateY(calc(-50% + 2px));width:44px;height:44px;min-height:0;padding:0;background:none;border:0;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.mg{display:flex;align-items:center;gap:16px;margin-top:10px}.mg-ring{position:relative;width:132px;height:132px;flex:none}.mg-ring svg{width:100%;height:100%;display:block}.mg-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.mg-c b{font-size:26px;line-height:1}.mg-c span{font-size:11px;margin-top:3px}.mg-l{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}.mg-r{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:600}.mg-r i{width:10px;height:10px;border-radius:50%;flex:none}.mg-r b{font-size:14px}
 .panel h2{margin-bottom:8px}.row-sb h2{margin:0}
 
 .calp{padding:18px 12px 14px;background:linear-gradient(180deg,#262937,#23252F)}
@@ -1313,6 +1314,30 @@ function chart(vals,labels){
   <text x="${x(0)}" y="${H-5}">${esc(labels[0])}</text><text x="${x(n-1)}" y="${H-5}" text-anchor="end">${esc(labels[n-1])}</text></svg>`;
 }
 function exerciseNames(){const m=new Map();for(const w of sorted())for(const e of w.exercises){const k=norm(e.name);if(!m.has(k))m.set(k,e.name)}return [...m.values()].sort((a,b)=>a.localeCompare(b))}
+const MG_COL={Chest:'#5B8DEF',Back:'#F2C94C',Legs:'#6FD39B',Shoulders:'#FB5102',Arms:'#B58CFF',Abs:'#4FD1C5','Full body':'#F28FB1',Other:'#7D8091'};
+function muscleOf(n){
+  if(isAbs(n))return 'Abs';const e=libFor(n),c=e?e.cat:'';
+  const map={Chest:'Chest',Back:'Back',Shoulders:'Shoulders',Traps:'Shoulders',Biceps:'Arms',Triceps:'Arms',Legs:'Legs',Core:'Abs','Full Body':'Full body',Bodyweight:'Other'};
+  if(['Warm-Up','Cardio','Stretching / Cool-Down'].includes(c))return null;
+  if(map[c])return map[c];
+  const s=String(n||'').toLowerCase();
+  if(/bench|chest|\bfly|flye|pec|push-?up|\bdips?\b|(flat|incline|decline) (db |dumbbell |machine )?press/.test(s))return 'Chest';
+  if(/\brows?\b|pull|\blats?\b|deadlift|back ext/.test(s))return 'Back';
+  if(/shoulder|lateral|delt|overhead|military|shrug|face pull|arnold/.test(s))return 'Shoulders';
+  if(/curl|tricep|pushdown|skull|kickback|extension/.test(s)&&!/leg|hamstring/.test(s))return 'Arms';
+  if(/squat|leg|lunge|calf|glute|hip thrust|hamstring|quad|step-?up/.test(s))return 'Legs';
+  return 'Other';
+}
+function muscleHTML(){
+  const m={};let total=0;
+  for(const w of db.workouts){if(w.skipped)continue;for(const e of (w.exercises||[])){const g=muscleOf(e.name);if(!g)continue;const n=(e.sets||[]).length;if(!n)continue;m[g]=(m[g]||0)+n;total+=n}}
+  if(!total)return '';
+  const rows=Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  const R=42,C=2*Math.PI*R;let off=0;
+  const arcs=rows.map(([g,v])=>{const len=v/total*C,gap=rows.length>1?Math.min(2,len*.3):0;const s=`<circle cx="60" cy="60" r="${R}" fill="none" stroke="${MG_COL[g]}" stroke-width="16" stroke-dasharray="${Math.max(0,len-gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;off+=len;return s}).join('');
+  const pcts=rows.map(([,v])=>Math.round(v/total*100));
+  return `<section class="panel"><div class="row-sb"><h2>Muscle groups</h2><span class="mut sm2">All time</span></div><div class="mg"><div class="mg-ring"><svg viewBox="0 0 120 120" role="img" aria-label="Sets by muscle group">${arcs}</svg><div class="mg-c"><b class="num">${fmtNum(total)}</b><span class="mut">Total sets</span></div></div><div class="mg-l">${rows.map(([g,v],i)=>`<div class="mg-r"><i style="background:${MG_COL[g]}"></i><span class="f1">${g}</span><b class="num">${pcts[i]}%</b></div>`).join('')}</div></div></section>`;
+}
 function renderProgress(){
   const seg=`<div class="seg2"><button class="${progView==='exercise'?'on':''}" data-act="prog-view" data-v="exercise">Exercises</button><button class="${progView==='records'?'on':''}" data-act="prog-view" data-v="records">Personal records</button></div>`;
   if(progView==='records'){view.innerHTML=seg+recordsHTML();return}
@@ -1323,7 +1348,7 @@ function renderProgress(){
   const entries=sorted().filter(w=>w.exercises.some(e=>norm(e.name)===n)).map(w=>{const e=w.exercises.find(e=>norm(e.name)===n);const wt=s=>s.w===''?0:+s.w;const top=Math.max(0,...e.sets.map(wt));return {date:w.date,sets:e.sets,maxT:Math.max(0,...e.sets.map(s=>+s.t||0)),top,topReps:Math.max(0,...e.sets.filter(s=>wt(s)===top).map(s=>+s.r||0)),maxReps:Math.max(0,...e.sets.map(s=>+s.r||0))}});
   const useW=entries.some(x=>x.top>0),useT=!useW&&entries.some(x=>x.maxT>0),metric=x=>useW?x.top:useT?x.maxT:x.maxReps;
   const best=Math.max(...entries.map(metric)),bestE=entries.find(x=>metric(x)===best),chron=[...entries].reverse();
-  let h=seg+`<label class="selwrap"><span class="sr">Exercise</span><select id="p-ex">${names.map(x=>`<option ${norm(x)===n?'selected':''}>${esc(x)}</option>`).join('')}</select></label>`;
+  let h=seg+muscleHTML()+`<label class="selwrap"><span class="sr">Exercise</span><select id="p-ex">${names.map(x=>`<option ${norm(x)===n?'selected':''}>${esc(x)}</option>`).join('')}</select></label>`;
   h+=`<div class="duo"><section class="panel tight"><div class="xs">${useW?'Heaviest':useT?'Longest hold':'Most reps'}</div><span class="big">${useW?fmtNum(best)+'<small> kg</small>':useT?best+'<small> sec</small>':best}</span><span class="cap">${useW?`${bestE.topReps} reps · `:''}${esc(shortDate(bestE.date))}</span></section><section class="panel tight"><div class="xs">Sessions</div><span class="big">${entries.length}</span><span class="cap">logged</span></section></div>`;
   if(chron.length>1){const dlt=metric(chron[chron.length-1])-metric(chron[0]);h+=`<section class="panel"><div class="row-sb"><h2>${useW?'Heaviest set per session':useT?'Longest hold per session':'Best set per session'}</h2>${dlt?`<span class="delta${dlt<0?' neg':''}">${dlt>0?'+':'−'}${fmtNum(Math.abs(dlt))}${useW?' kg':''}</span>`:''}</div>${chart(chron.map(metric),chron.map(x=>shortDate(x.date)))}</section>`}
   h+=`<section class="panel list2"><div class="xs" style="padding:2px 0 6px">All sessions</div>${entries.map(x=>`<div class="lrow"><span class="mut sm2" style="width:64px">${esc(shortDate(x.date))}</span><span class="f1 num tr">${esc(x.sets.map(fmtSet).join(' · '))}</span>${metric(x)===best?'<span class="badge">BEST</span>':''}</div>`).join('')}</section>`;
