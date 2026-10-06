@@ -292,6 +292,20 @@ button{border-radius:14px}
 .tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;border:0;border-radius:16px;font:600 11px "Manrope",system-ui,sans-serif;color:var(--muted)}
 .tabs button[aria-current="page"]{background:var(--accent);color:var(--accent-ink);border:0}
 .toast{bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+
+.stp{display:grid;grid-template-columns:20px minmax(0,1fr) auto minmax(0,1fr) 44px 28px;gap:6px;margin:-2px 0 10px}
+.stp>span:nth-child(3){width:9px}
+.stp-g{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.stp-g button{min-height:36px;padding:0;border-radius:10px;background:var(--field);color:var(--ink);font:700 14px "Space Grotesk",system-ui,sans-serif;border:0}
+.stp-g button:active{background:var(--accent);color:var(--accent-ink)}
+.restbar{position:fixed;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:11;background:#ECECEA;color:#1C1E2A;border-radius:20px;padding:10px 10px 10px 16px;display:flex;align-items:center;gap:12px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.rest-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(251,81,2,.22);transition:width .25s linear;pointer-events:none}
+.restbar>*{position:relative}
+.rest-txt{flex:1}#rest-l{font-size:12px;color:#4D505E;font-weight:600}#rest-t{font:700 24px/1 "Space Grotesk",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.rest-b{min-height:44px;padding:0 14px;border-radius:14px;border:0;background:#1C1E2A;color:#ECECEA;font:700 14px "Manrope",system-ui,sans-serif}
+.rest-b.ghosty{background:transparent;color:#1C1E2A;border:1.5px solid #B5B5B2}
+.restbar.over{background:var(--accent)}.restbar.over #rest-l{color:#1C1E2A}
+.wrap{padding-bottom:180px}
 </style>
 </head>
 <body>
@@ -323,6 +337,7 @@ button{border-radius:14px}
 
 <div id="auth" class="authscreen" hidden><div class="authbox" id="auth-body"></div></div>
 
+<div id="restbar" class="restbar" hidden role="timer" aria-live="off"><div class="rest-fill" id="rest-fill"></div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg><div class="rest-txt"><div id="rest-l">Rest</div><div id="rest-t">1:30</div></div><button data-act="rest-add" class="rest-b ghosty">+15 s</button><button data-act="rest-skip" class="rest-b">Skip</button></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <div id="wiz" class="modal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="w-title"><div id="wiz-body"></div></div></div>
@@ -918,9 +933,18 @@ document.addEventListener('toggle',ev=>{const d=ev.target;if(d&&d.classList&&d.c
 function exCard(ex,i){
   const {last,txt}=lastInfo(ex);
   const timed=isTimed(ex.name);
-  const rows=ex.sets.map((s,j)=>{const ls=last&&last.sets[j];if(timed){const run=timer&&timer.i===i&&timer.j===j;return `<div class="set timed${isDone(s)?' done':''}" data-j="${j}"><span class="setn">${j+1}</span><input class="t" data-f="t" inputmode="numeric" aria-label="Set ${j+1} seconds" placeholder="${esc(ls&&!blank(ls.t)?ls.t:(ls&&!blank(ls.r)?ls.r:'sec'))}" value="${esc(s.t??'')}"><button class="tbtn${run?' on':''}" data-act="timer" aria-label="${run?'Stop timer':'Start timer'} for set ${j+1}">${run?'Stop':'Start'}</button><button class="tick" data-act="done" aria-pressed="${isDone(s)}" aria-label="Set ${j+1} done">✓</button><button class="icon" data-act="rm-set" aria-label="Remove set ${j+1}">✕</button></div>`}return `<div class="set${isDone(s)?' done':''}" data-j="${j}"><span class="setn">${j+1}</span><input class="w" data-f="w" inputmode="decimal" aria-label="Set ${j+1} weight in kg" placeholder="${esc(ls&&ls.w!==''?ls.w:'kg')}" value="${esc(s.w)}"><span class="x">×</span><input class="r" data-f="r" inputmode="numeric" aria-label="Set ${j+1} reps" placeholder="${esc(ls&&ls.r!==''?ls.r:'reps')}" value="${esc(s.r)}"><button class="tick" data-act="done" aria-pressed="${isDone(s)}" aria-label="Set ${j+1} done">✓</button><button class="icon" data-act="rm-set" aria-label="Remove set ${j+1}">✕</button></div>`}).join('');
+  const act=timed?-1:ex.sets.findIndex(x=>!isDone(x));
+  const rows=ex.sets.map((s,j)=>{const ls=last&&last.sets[j];if(timed){const run=timer&&timer.i===i&&timer.j===j;return `<div class="set timed${isDone(s)?' done':''}" data-j="${j}"><span class="setn">${j+1}</span><input class="t" data-f="t" inputmode="numeric" aria-label="Set ${j+1} seconds" placeholder="${esc(ls&&!blank(ls.t)?ls.t:(ls&&!blank(ls.r)?ls.r:'sec'))}" value="${esc(s.t??'')}"><button class="tbtn${run?' on':''}" data-act="timer" aria-label="${run?'Stop timer':'Start timer'} for set ${j+1}">${run?'Stop':'Start'}</button><button class="tick" data-act="done" aria-pressed="${isDone(s)}" aria-label="Set ${j+1} done">✓</button><button class="icon" data-act="rm-set" aria-label="Remove set ${j+1}">✕</button></div>`}return `<div class="set${isDone(s)?' done':''}" data-j="${j}"><span class="setn">${j+1}</span><input class="w" data-f="w" inputmode="decimal" aria-label="Set ${j+1} weight in kg" placeholder="${esc(ls&&ls.w!==''?ls.w:'kg')}" value="${esc(s.w)}"><span class="x">×</span><input class="r" data-f="r" inputmode="numeric" aria-label="Set ${j+1} reps" placeholder="${esc(ls&&ls.r!==''?ls.r:'reps')}" value="${esc(s.r)}"><button class="tick" data-act="done" aria-pressed="${isDone(s)}" aria-label="Set ${j+1} done">✓</button><button class="icon" data-act="rm-set" aria-label="Remove set ${j+1}">✕</button></div>${j===act?`<div class="stp" data-j="${j}"><span></span><span class="stp-g"><button data-act="step" data-f="w" data-d="-2.5" aria-label="Set ${j+1}: 2.5 kg less">−2.5</button><button data-act="step" data-f="w" data-d="2.5" aria-label="Set ${j+1}: 2.5 kg more">+2.5</button></span><span></span><span class="stp-g"><button data-act="step" data-f="r" data-d="-1" aria-label="Set ${j+1}: one rep less">−1</button><button data-act="step" data-f="r" data-d="1" aria-label="Set ${j+1}: one rep more">+1</button></span></div>`:''}`}).join('');
   return `<section class="ex" data-i="${i}" data-timed="${timed?1:0}"><div class="ex-head">${ex.name.trim()?`<button class="ex-title" data-act="swap" aria-label="Swap ${esc(ex.name)}"><span>${esc(ex.name)}</span><span class="swap-hint">Info · Swap</span></button>`:`<input class="ex-name" list="exnames" placeholder="Exercise name" aria-label="Exercise name" value="">`}<button class="icon" data-act="rm-ex" aria-label="Remove exercise">✕</button></div>${targetLine(ex)}${lastHTML(ex)}${howHTML(ex)}${timed?`<p class="hint" style="margin:0 0 8px">Tap Start, hold, tap Stop. The seconds fill in automatically.${norm(ex.name)==='side plank'?' Time is per side.':''}</p>`:''}${rows}<div class="btnrow"><button class="ghost sm" data-act="add-set">Add set</button><button class="ghost sm" data-act="fill-last" ${last?'':'hidden'}>Copy last time</button></div></section>`;
 }
+function rebuildCard(i){const sec=view.querySelector(`.ex[data-i="${i}"]`);if(sec)sec.outerHTML=exCard(draft.exercises[i],i)}
+/* ---------- rest timer ---------- */
+let rest=null,restAC=null;
+function restSecs(name){const t=targetFor(name);const r=t?t.rest:'90 sec';const n=parseInt(r,10)||90;return /min/.test(r)?n*60:n}
+function beep(){try{if(!restAC)return;const o=restAC.createOscillator(),g=restAC.createGain();o.frequency.value=880;o.connect(g);g.connect(restAC.destination);const t=restAC.currentTime;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.3,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);o.start(t);o.stop(t+0.3);const o2=restAC.createOscillator();o2.frequency.value=1175;o2.connect(g);o2.start(t+0.32);o2.stop(t+0.6);g.gain.setValueAtTime(0.3,t+0.33);g.gain.exponentialRampToValueAtTime(0.0001,t+0.6)}catch(e){}}
+function startRest(name){try{restAC=restAC||new (window.AudioContext||window.webkitAudioContext)();if(restAC.state==='suspended')restAC.resume()}catch(e){}const sec=restSecs(name);clearInterval(rest&&rest.iv);rest={end:Date.now()+sec*1000,total:sec,iv:setInterval(tickRest,250)};$('#restbar').hidden=false;tickRest()}
+function stopRest(){if(rest)clearInterval(rest.iv);rest=null;const b=$('#restbar');b.hidden=true;b.classList.remove('over')}
+function tickRest(){if(!rest)return;const left=Math.max(0,Math.ceil((rest.end-Date.now())/1000)),b=$('#restbar');$('#rest-t').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('#rest-fill').style.width=(100-Math.min(100,left/rest.total*100))+'%';if(left<=0){clearInterval(rest.iv);rest=null;b.classList.add('over');$('#rest-t').textContent='Go!';$('#rest-l').textContent='Rest done · next set';beep();try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}setTimeout(()=>{if(!rest){b.hidden=true;b.classList.remove('over');$('#rest-l').textContent='Rest'}},4000)}}
 function refreshCard(i){
   const sec=view.querySelector(`.ex[data-i="${i}"]`);if(!sec)return;
   if((sec.dataset.timed==='1')!==isTimed(draft.exercises[i].name)){stopTimer(true);sec.outerHTML=exCard(draft.exercises[i],i);return}
@@ -1688,6 +1712,7 @@ view.addEventListener('change',e=>{
   else if(t.id==='p-ex'){progEx=t.value;renderProgress()}
   else if(t.classList.contains('cx-t')){const L=ensureCx(),i=+t.dataset.ci,old=L[i];L[i]=Object.assign(blankCx(t.value),{min:old.min});draft.cardio=cardioText(L);saveDraft();renderLog()}
 });
+$('#restbar').addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;if(b.dataset.act==='rest-skip')stopRest();else if(b.dataset.act==='rest-add'&&rest){rest.end+=15000;rest.total+=15;tickRest()}});
 view.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;
   if(act==='go-log')return go('log');
@@ -1722,7 +1747,10 @@ view.addEventListener('click',e=>{
   if(act==='warm'){const k=+b.dataset.k,s=new Set(draft.warmDone||[]);s.has(k)?s.delete(k):s.add(k);draft.warmDone=[...s];saveDraft();renderLog();return}
   if(act==='swap'){openEx({i:idx(b)});return}
   if(act==='rm-ex'){stopTimer(true);const i=idx(b);const ex=draft.exercises[i];const doIt=()=>{draft.exercises.splice(i,1);saveDraft();renderLog()};if(ex.sets.some(s=>String(s.w).trim()||String(s.r).trim()))ask('Remove exercise?',`${ex.name||'This exercise'} and its sets will be removed from this workout.`,'Remove',doIt,true);else doIt();return}
-  if(act==='done'){const row=b.closest('.set'),s=draft.exercises[idx(b)].sets[+row.dataset.j];if(!isDone(s)&&!filled(s)){toast('Enter the weight and reps first');return}s.done=!isDone(s);if(!s.done)s.edited=false;row.classList.toggle('done',s.done);b.setAttribute('aria-pressed',String(s.done));saveDraft();return}
+  if(act==='done'){const row=b.closest('.set'),s=draft.exercises[idx(b)].sets[+row.dataset.j];if(!isDone(s)&&!filled(s)){toast('Enter the weight and reps first');return}s.done=!isDone(s);if(!s.done)s.edited=false;const ci=idx(b);saveDraft();rebuildCard(ci);if(s.done)startRest(draft.exercises[ci].name);else stopRest();return}
+  if(act==='step'){const row=b.closest('.stp'),i=idx(b),j=+row.dataset.j,ex=draft.exercises[i],s=ex.sets[j],f=b.dataset.f,d=+b.dataset.d;const ls=(lastInfo(ex).last||{sets:[]}).sets[j];let v=num(s[f]);if(v==='')v=num(ls&&ls[f]);if(v==='')v=0;v=Math.max(0,Math.round((v+d)*100)/100);s[f]=String(v);s.edited=true;if(s.done===undefined)s.done=false;const inp=view.querySelector(`.ex[data-i="${i}"] .set[data-j="${j}"] input[data-f="${f}"]`);if(inp)inp.value=s[f];saveDraft();return}
+  if(act==='rest-skip'){stopRest();return}
+  if(act==='rest-add'){if(rest)rest.end+=15000;tickRest();return}
   if(act==='add-set'){const s=draft.exercises[idx(b)].sets;const p=s[s.length-1];s.push({w:p?p.w:'',r:p?p.r:'',t:p&&p.t?p.t:'',done:false});saveDraft();renderLog();return}
   if(act==='timer'){const i=idx(b),j=+b.closest('.set').dataset.j;if(timer&&timer.i===i&&timer.j===j)stopTimer();else startTimer(i,j);return}
   if(act==='rm-set'){stopTimer(true);draft.exercises[idx(b)].sets.splice(+b.closest('.set').dataset.j,1);saveDraft();renderLog();return}
