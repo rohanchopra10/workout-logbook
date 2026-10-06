@@ -1937,13 +1937,15 @@ function maybeCheckin(){
 function renderProfile(){
   if(profView==='settings'){view.innerHTML=settingsHTML();return}
   if(profView==='sync'){view.innerHTML=syncHTML();return}
+  if(profView==='equip'){view.innerHTML=`<div class="wo-head"><button class="iconbtn" data-act="prof-back" aria-label="Back">${ico('back',20)}</button><h1 class="wo-t f1">My gym equipment</h1></div>`+equipHTML().replace('<h2>My gym equipment</h2>','');return}
   const st=db.settings,first=[...db.workouts].sort((a,b)=>a.date<b.date?-1:1)[0],ti=(new Date().getDay()+6)%7;
   const chip=(k,v)=>`<section class="panel tight"><div class="xs">${k}</div><div class="num" style="font-size:17px;margin-top:2px">${esc(v)}</div></section>`;
   view.innerHTML=`<div class="prof-head"><span class="avatar big">${esc((st.name||'?').trim().charAt(0).toUpperCase())}</span><div class="f1"><h1 class="wo-t">${esc(st.name||'Your profile')}</h1><div class="mut sm2">${first?'Training since '+esc(new Date(first.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',year:'numeric'})):'Welcome'}</div></div><button class="iconbtn" data-act="open-settings" aria-label="Settings">${ico('settings',20)}</button></div>
   <div class="trio">${chip('Height',st.height?st.height+' cm':'—')}${chip('Goal',goalNow().replace('Body Recomposition','Recomp'))}${chip('Days',trainDays().length+' / wk')}</div>
   <section class="panel"><div class="row-sb"><h2>This week's plan</h2><span class="acc sm2" style="font-weight:700">${activePlan()==='double'?'Double-part':'Single-part'}</span></div><div class="plan">${sched().map((s,i)=>`<div class="lrow"><span class="mut sm2" style="width:44px">${DAYS[i]}</span><b class="f1">${esc(s==='Rest / walk'?'Rest':s)}</b>${i===ti?'<span class="badge2">TODAY</span>':''}</div>`).join('')}<div class="lrow"><span class="mut sm2" style="width:44px">Extra</span><b class="f1">🔥 Abs ${esc(crLabel(crSet().abs))} · 🧘 Yoga ${esc(crLabel(crSet().yoga))}</b></div></div><div class="btnrow"><button class="ghost sm" data-act="edit-profile">${ico('edit',15)} Edit profile &amp; plan</button></div></section>
   <button class="card-row" data-act="open-lib"><span class="ic-tile">${ico('book',22)}</span><span class="f1"><b>Exercise Library</b><span class="mut sm2" style="display:block">${LIB.length} exercises with demos</span></span><span class="mut">${ico('chev',18)}</span></button>
-  ${equipHTML()}${prefsHTML()}${accountHTML()}`;
+  <button class="card-row" data-act="open-equip"><span class="ic-tile">${ico('weight',22)}</span><span class="f1"><b>My gym equipment</b><span class="mut sm2" style="display:block">${EQUIP.length-EQUIP.filter(([k])=>missing().has(k)).length} of ${EQUIP.length} available</span></span><span class="mut">${ico('chev',18)}</span></button>
+  ${prefsHTML()}${accountHTML()}`;
 }
 
 /* ---------- v2 UI: home, records, complete, share, settings, sync ---------- */
@@ -2175,6 +2177,7 @@ view.addEventListener('click',e=>{
   if(act==='hist-filter'){histFilter=b.dataset.v;renderHistory();return}
   if(act==='prog-view'){progView=b.dataset.v;renderProgress();return}
   if(act==='open-settings'){profView='settings';renderProfile();window.scrollTo(0,0);return}
+  if(act==='open-equip'){profView='equip';renderProfile();window.scrollTo(0,0);return}
   if(act==='open-sync'){profView='sync';renderProfile();window.scrollTo(0,0);return}
   if(act==='prof-back'){profView=profView==='sync'?'settings':null;renderProfile();window.scrollTo(0,0);return}
   if(act.startsWith('info-')){const t=INFO[act.slice(5)];if(t)openModal({title:t[0],text:t[1]});return}
