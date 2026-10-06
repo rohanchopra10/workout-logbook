@@ -145,6 +145,12 @@ details.wk.skipped{opacity:.7}
 .fact{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
 .fact span:first-child{color:var(--muted);flex:none}
 .fact span:last-child{text-align:right;font-weight:600}
+.howto{margin:0 0 10px;border:1px solid var(--line);border-radius:10px;background:var(--field);padding:0 12px}
+.howto summary{cursor:pointer;min-height:40px;display:flex;align-items:center;font-weight:600;font-size:14px;color:var(--accent);list-style:none}
+.howto summary::-webkit-details-marker{display:none}
+.howto summary::before{content:'▸';margin-right:8px;transition:transform .15s}
+.howto[open] summary::before{transform:rotate(90deg)}
+.howto[open]{padding-bottom:10px}
 .steps{margin:6px 0 0;padding-left:22px;font-size:14px;line-height:1.45;color:var(--ink)}.steps li{margin:0 0 5px}.steps li::marker{color:var(--accent);font-weight:700}
 .cue{margin:8px 0 0!important;color:var(--ink)!important;font-size:14px;line-height:1.45}
 .libsheet{max-height:90vh}
@@ -891,11 +897,14 @@ function lastHTML(ex){
   return `<div class="lastbox"><div class="lb-h">Last time, ${esc(niceDate(last.date))}</div><div class="lb-sets">${esc(last.sets.map(fmtSet).join('   '))}</div><div class="lb-next">Already filled in below. Change any number if you did more, then tap ✓ on each set you did.</div>${(()=>{const r=readyLine(ex.name,last.sets);return r?`<div class="lb-ready">↑ ${esc(r)}</div>`:''})()}</div>`;
 }
 function lastInfo(ex){const last=lastFor(ex.name,draft.editingId,draft.date);const txt=last?`Last time, ${shortDate(last.date)}: ${last.sets.map(fmtSet).join(', ')}`:(ex.name.trim()?'First time logging this':'');return {last,txt}}
+const openHow=new Set();
+function howHTML(ex){const e=libFor(ex.name);const st=e&&STEPS[e.name];if(!st)return '';return `<details class="howto" data-how="${esc(e.name)}"${openHow.has(e.name)?' open':''}><summary>How to do it</summary><ol class="steps">${st.split('|').map(x=>`<li>${esc(x)}</li>`).join('')}</ol><p class="hint" style="margin:4px 0 0"><b>Avoid:</b> ${esc(e.mistake)}</p></details>`}
+document.addEventListener('toggle',ev=>{const d=ev.target;if(d&&d.classList&&d.classList.contains('howto')){d.open?openHow.add(d.dataset.how):openHow.delete(d.dataset.how)}},true);
 function exCard(ex,i){
   const {last,txt}=lastInfo(ex);
   const timed=isTimed(ex.name);
   const rows=ex.sets.map((s,j)=>{const ls=last&&last.sets[j];if(timed){const run=timer&&timer.i===i&&timer.j===j;return `<div class="set timed${isDone(s)?' done':''}" data-j="${j}"><span class="setn">${j+1}</span><input class="t" data-f="t" inputmode="numeric" aria-label="Set ${j+1} seconds" placeholder="${esc(ls&&!blank(ls.t)?ls.t:(ls&&!blank(ls.r)?ls.r:'sec'))}" value="${esc(s.t??'')}"><button class="tbtn${run?' on':''}" data-act="timer" aria-label="${run?'Stop timer':'Start timer'} for set ${j+1}">${run?'Stop':'Start'}</button><button class="tick" data-act="done" aria-pressed="${isDone(s)}" aria-label="Set ${j+1} done">✓</button><button class="icon" data-act="rm-set" aria-label="Remove set ${j+1}">✕</button></div>`}return `<div class="set${isDone(s)?' done':''}" data-j="${j}"><span class="setn">${j+1}</span><input class="w" data-f="w" inputmode="decimal" aria-label="Set ${j+1} weight in kg" placeholder="${esc(ls&&ls.w!==''?ls.w:'kg')}" value="${esc(s.w)}"><span class="x">×</span><input class="r" data-f="r" inputmode="numeric" aria-label="Set ${j+1} reps" placeholder="${esc(ls&&ls.r!==''?ls.r:'reps')}" value="${esc(s.r)}"><button class="tick" data-act="done" aria-pressed="${isDone(s)}" aria-label="Set ${j+1} done">✓</button><button class="icon" data-act="rm-set" aria-label="Remove set ${j+1}">✕</button></div>`}).join('');
-  return `<section class="ex" data-i="${i}" data-timed="${timed?1:0}"><div class="ex-head">${ex.name.trim()?`<button class="ex-title" data-act="swap" aria-label="Swap ${esc(ex.name)}"><span>${esc(ex.name)}</span><span class="swap-hint">Info · Swap</span></button>`:`<input class="ex-name" list="exnames" placeholder="Exercise name" aria-label="Exercise name" value="">`}<button class="icon" data-act="rm-ex" aria-label="Remove exercise">✕</button></div>${targetLine(ex)}${lastHTML(ex)}${timed?`<p class="hint" style="margin:0 0 8px">Tap Start, hold, tap Stop. The seconds fill in automatically.${norm(ex.name)==='side plank'?' Time is per side.':''}</p>`:''}${rows}<div class="btnrow"><button class="ghost sm" data-act="add-set">Add set</button><button class="ghost sm" data-act="fill-last" ${last?'':'hidden'}>Copy last time</button></div></section>`;
+  return `<section class="ex" data-i="${i}" data-timed="${timed?1:0}"><div class="ex-head">${ex.name.trim()?`<button class="ex-title" data-act="swap" aria-label="Swap ${esc(ex.name)}"><span>${esc(ex.name)}</span><span class="swap-hint">Info · Swap</span></button>`:`<input class="ex-name" list="exnames" placeholder="Exercise name" aria-label="Exercise name" value="">`}<button class="icon" data-act="rm-ex" aria-label="Remove exercise">✕</button></div>${targetLine(ex)}${lastHTML(ex)}${howHTML(ex)}${timed?`<p class="hint" style="margin:0 0 8px">Tap Start, hold, tap Stop. The seconds fill in automatically.${norm(ex.name)==='side plank'?' Time is per side.':''}</p>`:''}${rows}<div class="btnrow"><button class="ghost sm" data-act="add-set">Add set</button><button class="ghost sm" data-act="fill-last" ${last?'':'hidden'}>Copy last time</button></div></section>`;
 }
 function refreshCard(i){
   const sec=view.querySelector(`.ex[data-i="${i}"]`);if(!sec)return;
