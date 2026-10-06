@@ -425,6 +425,13 @@ button.cday{background:rgba(255,255,255,.03)}
 .cday.now{box-shadow:inset 0 0 0 1.5px #ECECEA}
 .cday.sel{background:rgba(251,81,2,.22);box-shadow:inset 0 0 0 2px var(--accent)}
 .cday.e{visibility:hidden}
+
+/* keep the tab bar pinned to the bottom on iPhone */
+html{height:100%;background:var(--bg)}
+body{min-height:100%;overscroll-behavior-y:none}
+.wrap{min-height:100vh;min-height:100dvh;box-sizing:border-box}
+.tabs,.restbar{transform:translateZ(0);-webkit-transform:translateZ(0)}
+.tabs{bottom:max(10px,calc(env(safe-area-inset-bottom,0px) + 4px))}
 </style>
 </head>
 <body>
@@ -1992,7 +1999,7 @@ view.addEventListener('click',e=>{
   if(act==='go-weight'){go('weight');return}
   if(act==='open-records'){progView='records';go('progress');return}
   if(act==='rec-filter'){recFilter=b.dataset.v;renderProgress();return}
-  if(act==='cal-day'){histDate=b.dataset.date;view.querySelectorAll('.cdb.sel').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false')});b.classList.add('sel');b.setAttribute('aria-pressed','true');$('#daydetail').innerHTML=dayHTML(histDate);return}
+  if(act==='cal-day'){const sy=window.scrollY;histDate=b.dataset.date;view.querySelectorAll('.cdb.sel').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false')});b.classList.add('sel');b.setAttribute('aria-pressed','true');$('#daydetail').innerHTML=dayHTML(histDate);window.scrollTo(0,Math.min(sy,document.documentElement.scrollHeight-innerHeight));return}
   if(act==='cal-prev'){calOff-=1;renderHistory();return}
   if(act==='cal-next'){if(calOff<0)calOff+=1;renderHistory();return}
   if(act==='hist-filter'){histFilter=b.dataset.v;renderHistory();return}
