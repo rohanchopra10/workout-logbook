@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Workout Logbook</title>
 <meta name="description" content="Personal workout log with weekly plans, last-time numbers and progress.">
 <meta name="theme-color" content="#1C1E2A">
@@ -432,6 +432,11 @@ body{min-height:100%;overscroll-behavior-y:none}
 .wrap{min-height:100vh;min-height:100dvh;box-sizing:border-box}
 .tabs,.restbar{transform:translateZ(0);-webkit-transform:translateZ(0)}
 .tabs{bottom:max(10px,calc(env(safe-area-inset-bottom,0px) + 4px))}
+
+/* no pinch / double-tap zoom */
+html,body{touch-action:manipulation;-webkit-text-size-adjust:100%}
+*{-webkit-tap-highlight-color:transparent}
+button.cday:focus{outline:none}
 </style>
 </head>
 <body>
@@ -1999,7 +2004,7 @@ view.addEventListener('click',e=>{
   if(act==='go-weight'){go('weight');return}
   if(act==='open-records'){progView='records';go('progress');return}
   if(act==='rec-filter'){recFilter=b.dataset.v;renderProgress();return}
-  if(act==='cal-day'){const sy=window.scrollY;histDate=b.dataset.date;view.querySelectorAll('.cday.sel,.cdb.sel').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false')});b.classList.add('sel');b.setAttribute('aria-pressed','true');$('#daydetail').innerHTML=dayHTML(histDate);window.scrollTo(0,Math.min(sy,document.documentElement.scrollHeight-innerHeight));return}
+  if(act==='cal-day'){const sy=window.scrollY;histDate=b.dataset.date;view.innerHTML=calHTML(histDate)+`<div id="daydetail">${dayHTML(histDate)}</div>`;window.scrollTo(0,Math.min(sy,document.documentElement.scrollHeight-innerHeight));return}
   if(act==='cal-prev'){calOff-=1;renderHistory();return}
   if(act==='cal-next'){if(calOff<0)calOff+=1;renderHistory();return}
   if(act==='hist-filter'){histFilter=b.dataset.v;renderHistory();return}
@@ -2330,6 +2335,7 @@ function finishLoad(ok){
   render();
   if(ok&&!finishLoad.asked){finishLoad.asked=true;setTimeout(maybeCheckin,300)}
 }
+document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});
 go('log');
 initApp();
 </script>
