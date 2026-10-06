@@ -409,6 +409,7 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .cd.fut{background:#3A3D4F}
 .cd.ok{width:9px;height:9px;margin:2px 0;background:#3DDC84;box-shadow:0 0 6px 1px rgba(61,220,132,.75),0 0 14px 2px rgba(61,220,132,.35)}
 .cd.bad{width:8px;height:8px;margin:2.5px 0;background:#FF4D4D;box-shadow:0 0 6px 1px rgba(255,77,77,.7),0 0 12px 2px rgba(255,77,77,.3)}
+.cd.rest{width:8px;height:8px;margin:2.5px 0;background:#FFC93C;box-shadow:0 0 6px 1px rgba(255,201,60,.7),0 0 12px 2px rgba(255,201,60,.3)}
 .cd.now{outline:1.5px solid #ECECEA;outline-offset:2px}
 button.cd{cursor:pointer}
 .calleg{display:flex;justify-content:center;gap:16px;margin-top:14px;font-size:12px;color:var(--muted)}
@@ -432,7 +433,7 @@ button.cd{cursor:pointer}
 button.cday{background:rgba(255,255,255,.03)}
 .cday.fut{color:#5B5F72}
 .cday .cn{line-height:18px;height:18px}.cday .cd{margin:0}
-.cday .cd:not(.ok):not(.bad){width:5px;height:5px;background:#4A4E62}.cday .cd.fut{background:#33364A!important}
+.cday .cd:not(.ok):not(.bad):not(.rest){width:5px;height:5px;background:#4A4E62}.cday .cd.fut{background:#33364A!important}
 .cday.now{box-shadow:inset 0 0 0 1.5px #ECECEA}
 .cday.sel{background:rgba(251,81,2,.22);box-shadow:inset 0 0 0 2px var(--accent)}
 .cday.e{visibility:hidden}
@@ -1271,18 +1272,18 @@ function calHTML(sel){
   const xd={};db.workouts.forEach(w=>{if(w.extra){(xd[w.date]=xd[w.date]||new Set()).add(w.extra);return}if(w.skipped)skipped.add(w.date);else if(!done.has(w.date))done.set(w.date,w.id)});
   const first=[...db.workouts].map(w=>w.date).sort()[0],t=today(),now=new Date();
   const md=new Date(now.getFullYear(),now.getMonth()+calOff,1),y=md.getFullYear(),mo=md.getMonth(),days=new Date(y,mo+1,0).getDate(),lead=(md.getDay()+6)%7;
-  let cells='',nd=0,nb=0;
+  let cells='',nd=0,nb=0,nr=0;
   for(let i=0;i<lead;i++)cells+='<span class="cday e"></span>';
   for(let d=1;d<=days;d++){const dt=new Date(y,mo,d),k=ymd(dt);let cls='',lab='';
     if(done.has(k)){cls='ok';lab='workout done';nd++}
-    else if(k<t&&first&&k>=first){cls='bad';lab=skipped.has(k)?'skipped':sched(k)[(dt.getDay()+6)%7]==='Rest / walk'?'rest day':'missed';nb++}
+    else if(k<t&&first&&k>=first){if(!skipped.has(k)&&sched(k)[(dt.getDay()+6)%7]==='Rest / walk'){cls='rest';lab='rest day';nr++}else{cls='bad';lab=skipped.has(k)?'skipped':'missed';nb++}}
     const xs=xd[k]||new Set();if(xs.size)lab=[lab,...[...xs].map(x=>x+' done')].filter(Boolean).join(', ');
     const title=`${dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}${lab?': '+lab:''}`;
     const inner=`<span class="cn">${d}</span><span class="cdr"><i class="cd ${cls||(k>t?'fut':'')}"></i>${xs.has('abs')?'<i class="cx abs"></i>':''}${xs.has('yoga')?'<i class="cx yoga"></i>':''}</span>`;
     cells+=k>t?`<span class="cday fut">${inner}</span>`:`<button class="cday${k===sel?' sel':''}${k===t?' now':''}" data-act="cal-day" data-date="${k}" aria-label="${title}" aria-pressed="${k===sel}">${inner}</button>`}
-  return `<section class="panel calp"><div class="calnav"><button class="iconbtn sm" data-act="cal-prev" aria-label="Previous month">${ico('back',18)}</button><div class="calt"><b>${md.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><span class="mut sm2">${nd} done · ${nb} missed or rest</span></div><button class="iconbtn sm" data-act="cal-next" aria-label="Next month" ${calOff>=0?'disabled':''}>${ico('chev',18)}</button></div>
+  return `<section class="panel calp"><div class="calnav"><button class="iconbtn sm" data-act="cal-prev" aria-label="Previous month">${ico('back',18)}</button><div class="calt"><b>${md.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><span class="mut sm2">${nd} done · ${nb} missed · ${nr} rest</span></div><button class="iconbtn sm" data-act="cal-next" aria-label="Next month" ${calOff>=0?'disabled':''}>${ico('chev',18)}</button></div>
   <div class="cwk">${['M','T','W','T','F','S','S'].map(x=>`<span>${x}</span>`).join('')}</div><div class="cgrid2">${cells}</div>
-  <div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Missed, skipped or rest</span></div><div class="calleg" style="margin-top:8px"><span><i class="cx abs"></i>Abs</span><span><i class="cx yoga"></i>Yoga</span></div></section>`;
+  <div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Missed or skipped</span><span><i class="cd rest"></i>Rest</span></div><div class="calleg" style="margin-top:8px"><span><i class="cx abs"></i>Abs</span><span><i class="cx yoga"></i>Yoga</span></div></section>`;
 }
 function dayHTML(date){
   const ws=db.workouts.filter(w=>w.date===date).sort((a,b)=>(a.created||0)-(b.created||0)),dt=new Date(date+'T00:00:00'),prW=new Set(allPRs().events.map(p=>p.wid));
