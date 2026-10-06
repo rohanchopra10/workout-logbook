@@ -387,6 +387,21 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .sp-tag{color:var(--muted);font-size:14px;margin-top:-8px}
 .pw{position:relative;display:block}.pw input{padding-right:52px}.pweye{position:absolute;right:4px;top:50%;transform:translateY(calc(-50% + 2px));width:44px;height:44px;min-height:0;padding:0;background:none;border:0;color:var(--muted);display:flex;align-items:center;justify-content:center}
 .panel h2{margin-bottom:8px}.row-sb h2{margin:0}
+
+.calp{padding:18px 12px 14px;background:linear-gradient(180deg,#262937,#23252F)}
+.calrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cm{display:flex;flex-direction:column;align-items:center;gap:12px}
+.cmh{font:600 15px "Manrope",system-ui,sans-serif;color:#ECECEA}
+.cg{display:grid;grid-template-columns:repeat(7,13px);gap:3px 1px;justify-items:center;align-items:center}
+.cd{width:5px;height:5px;border-radius:50%;background:#5B5F72;display:block;padding:0;border:0;min-height:0;margin:4px 0}
+.cd.e{background:transparent}
+.cd.fut{background:#3A3D4F}
+.cd.ok{width:9px;height:9px;margin:2px 0;background:#3DDC84;box-shadow:0 0 6px 1px rgba(61,220,132,.75),0 0 14px 2px rgba(61,220,132,.35)}
+.cd.bad{width:8px;height:8px;margin:2.5px 0;background:#FF4D4D;box-shadow:0 0 6px 1px rgba(255,77,77,.7),0 0 12px 2px rgba(255,77,77,.3)}
+.cd.now{outline:1.5px solid #ECECEA;outline-offset:2px}
+button.cd{cursor:pointer}
+.calleg{display:flex;justify-content:center;gap:16px;margin-top:14px;font-size:12px;color:var(--muted)}
+.calleg span{display:flex;align-items:center;gap:6px}.calleg .cd{margin:0}
 </style>
 </head>
 <body>
@@ -1169,13 +1184,31 @@ function saveWorkout(force){
 
 /* ---------- HISTORY ---------- */
 function workoutText(w){const L=[`${niceDate(w.date)}: ${w.type}${w.skipped?' (skipped)':''}`];w.exercises.forEach(e=>L.push(`${e.name}: ${e.sets.map(fmtSet).join(', ')}`));if(w.cardio)L.push('Cardio: '+w.cardio);if(w.notes)L.push('Notes: '+w.notes);return L.join('\n')}
+
+function calHTML(){
+  const done=new Map(),skipped=new Set();
+  db.workouts.forEach(w=>{if(w.skipped)skipped.add(w.date);else if(!done.has(w.date))done.set(w.date,w.id)});
+  const first=[...db.workouts].map(w=>w.date).sort()[0],t=today(),now=new Date();
+  const months=[-2,-1,0].map(k=>new Date(now.getFullYear(),now.getMonth()+k,1));
+  const m=months.map(md=>{const y=md.getFullYear(),mo=md.getMonth(),days=new Date(y,mo+1,0).getDate(),lead=(md.getDay()+6)%7;let cells='';
+    for(let i=0;i<lead;i++)cells+='<span class="cd e"></span>';
+    for(let d=1;d<=days;d++){const k=ymd(new Date(y,mo,d));let cls='',lab='';
+      if(done.has(k)){cls='ok';lab='workout done'}
+      else if(k<t&&first&&k>=first){cls='bad';lab=skipped.has(k)?'skipped':sched(k)[(new Date(y,mo,d).getDay()+6)%7]==='Rest / walk'?'rest day':'missed'}
+      else if(k>t)cls='fut';
+      if(k===t)cls+=' now';
+      const title=`${new Date(y,mo,d).toLocaleDateString(undefined,{day:'numeric',month:'short'})}${lab?': '+lab:''}`;
+      cells+=done.has(k)?`<button class="cd ${cls}" data-act="cal-open" data-id="${done.get(k)}" aria-label="${title}" title="${title}"></button>`:`<span class="cd ${cls}" title="${title}"${lab?` aria-label="${title}"`:''}></span>`}
+    return `<div class="cm"><div class="cmh">${md.toLocaleDateString(undefined,{month:'short'})}</div><div class="cg">${cells}</div></div>`}).join('');
+  return `<section class="panel calp"><div class="calrow">${m}</div><div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Missed, skipped or rest</span></div></section>`;
+}
 function renderHistory(){
   const all=sorted();
   if(!all.length){view.innerHTML=`<div class="center-col" style="margin-top:90px"><div class="emptyicon">${DB_ICON(70,'#3A3D4F')}</div><h2>No workouts yet</h2><p class="mut" style="margin:0;max-width:260px">Start your first workout and it will appear here.</p><button class="primary bigbtn" style="width:220px" data-act="start-workout">Start workout</button></div>`;return}
   const chips=['All','Chest','Back','Shoulders','Legs','Arms'];
   const match=w=>histFilter==='All'||(histFilter==='Arms'?/biceps|triceps|arms/i.test(w.type):new RegExp(histFilter,'i').test(w.type));
   const list=all.filter(match),prW=new Set(allPRs().events.map(p=>p.wid));
-  let h=`<div class="chips">${chips.map(c=>`<button class="chip2${c===histFilter?' on':''}" data-act="hist-filter" data-v="${c}">${c}</button>`).join('')}</div>`;
+  let h=calHTML()+`<div class="chips">${chips.map(c=>`<button class="chip2${c===histFilter?' on':''}" data-act="hist-filter" data-v="${c}">${c}</button>`).join('')}</div>`;
   if(!list.length)h+=`<div class="empty"><p>No ${esc(histFilter)} workouts yet.</p></div>`;
   let month='';
   h+=list.map(w=>{const dt=new Date(w.date+'T00:00:00'),m=dt.toLocaleDateString(undefined,{month:'long',year:'numeric'});let pre='';if(m!==month){month=m;pre=`<div class="xs mhead">${esc(m)}</div>`}
@@ -1272,7 +1305,7 @@ function renderWeight(){
     const since=new Date();since.setDate(since.getDate()-30);const rec=ws.filter(x=>x.date>=ymd(since)).reverse(),c=rec.length>1?rec:[...ws].reverse();
     if(c.length>1){const dl=c[c.length-1].kg-c[0].kg;h+=`<section class="panel"><div class="row-sb"><h2>${rec.length>1?'Last 30 days':'Trend'}</h2><span class="delta${dl>0?' neg':''}">${dl>0?'+':dl<0?'−':''}${fmtNum(Math.round(Math.abs(dl)*10)/10)} kg</span></div>${chart(c.map(e=>e.kg),c.map(e=>shortDate(e.date)))}</section>`}
   }else h+=`<div class="center-col" style="margin:20px 0"><p class="mut" style="margin:0">No weigh-ins yet. Weigh in once a week, Monday morning.</p></div>`;
-  h+=`<section class="panel"><div class="row-sb"><h2>Weekly weigh-in</h2><span class="mut sm2">${esc(new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short'}))}</span></div><input type="hidden" id="bw-date" value="${today()}"><div class="qrow" style="margin-top:10px"><input id="bw-kg" inputmode="decimal" aria-label="Weight in kg" placeholder="${ws.length?fmtNum(ws[0].kg)+' kg':'kg'}"><button class="primary" data-act="bw-add">Save</button></div></section>`;
+  h+=`<section class="panel"><div class="row-sb"><h2>Add weigh-in</h2><span class="mut sm2">${esc(new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'short'}))}</span></div><input type="hidden" id="bw-date" value="${today()}"><div class="qrow" style="margin-top:10px"><input id="bw-kg" inputmode="decimal" aria-label="Weight in kg" placeholder="${ws.length?fmtNum(ws[0].kg)+' kg':'kg'}"><button class="primary" data-act="bw-add">Save</button></div></section>`;
   if(ws.length)h+=`<section class="panel list2"><div class="xs" style="padding:2px 0 6px">Past weigh-ins</div>${ws.map(e=>`<div class="lrow"><span class="f1 mut sm2">${esc(niceDate(e.date))}</span><b class="num">${fmtNum(e.kg)} kg</b><button class="icon" data-act="bw-del" data-date="${e.date}" aria-label="Delete weigh-in on ${esc(niceDate(e.date))}">✕</button></div>`).join('')}</section>`;
   view.innerHTML=h;
 }
@@ -1817,7 +1850,7 @@ function homeHTML(){
   ${hero}
   <div class="duo"><section class="panel tight"><div class="xs">This week</div><div class="num big3">${doneWeek}<span class="mut"> / ${total}</span></div><div class="bar"><div style="width:${Math.min(100,doneWeek/Math.max(1,total)*100)}%"></div></div></section>
   <section class="panel tight"><div class="xs">Streak</div><div class="streak"><span class="acc">${ico('flame',26)}</span><span class="num big3">${strk}</span></div><div class="mut sm2">day streak</div></section></div>
-  ${prCard}${weighCard()}
+  ${prCard}
   <div class="quick"><button class="qbtn" data-act="go-weight">${ico('weight',17)}Weight</button><button class="qbtn" data-act="open-lib">${ico('book',17)}Library</button><button class="qbtn" data-act="open-records">${ico('trophy',17)}Records</button></div>
   ${weekStrip()}`;
 }
@@ -1934,6 +1967,7 @@ view.addEventListener('click',e=>{
   if(act==='go-weight'){go('weight');return}
   if(act==='open-records'){progView='records';go('progress');return}
   if(act==='rec-filter'){recFilter=b.dataset.v;renderProgress();return}
+  if(act==='cal-open'){openId=b.dataset.id;histFilter='All';renderHistory();const el=view.querySelector('details.wk[open]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return}
   if(act==='hist-filter'){histFilter=b.dataset.v;renderHistory();return}
   if(act==='prog-view'){progView=b.dataset.v;renderProgress();return}
   if(act==='open-settings'){profView='settings';renderProfile();window.scrollTo(0,0);return}
