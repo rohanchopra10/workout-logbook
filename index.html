@@ -11,8 +11,8 @@
 <meta name="apple-mobile-web-app-title" content="Logbook">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=2">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1895,7 +1895,7 @@ function showAuth(mode,fromWelcome){
 function hideAuth(){$('#auth').hidden=true}
 function paintAuth(){
   const m=authMode,body=$('#auth-body');
-  const head=`<div class="authlogo" aria-hidden="true"><img src="icon-192.png" alt=""></div><h1 class="cond">Workout Logbook</h1>`;
+  const head=`<div class="authlogo" aria-hidden="true"><img src="icon-192.png?v=2" alt=""></div><h1 class="cond">Workout Logbook</h1>`;
   const msg=authMsg?`<p class="authmsg" role="alert">${esc(authMsg)}</p>`:'';
   if(m==='reset'){body.innerHTML=`${head}<p class="authsub">Choose a new password for your account.</p>${msg}
     <form id="auth-form"><label>New password<input id="a-pass" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></label>
