@@ -1,6 +1,6 @@
 # Workout Logbook
 
-Your own workout app: weekly Double-part / Single-part plan, today's-workout menu (every double-part combination plus Custom), last-time weights and reps filled in, exercise library with smart swaps, warm-up and cool-down, cardio, weekly weigh-in, history, progress charts and coach feedback through Claude.
+Your own workout app: weekly Double-part / Single-part plan, today's-workout menu (every double-part combination plus Custom), last-time weights and reps filled in, exercise library (212 exercises, each with a short step-by-step tutorial) with smart swaps, warm-up and cool-down, cardio, weekly weigh-in, history, progress charts and coach feedback through Claude.
 
 Works on iPhone and Android. Without an account, workouts are saved only on the phone. With a free account (Supabase), they are also saved privately in the cloud and sync across phones. Workouts are never uploaded to GitHub.
 
