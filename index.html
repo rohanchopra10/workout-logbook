@@ -1272,18 +1272,18 @@ function calHTML(sel){
   const xd={};db.workouts.forEach(w=>{if(w.extra){(xd[w.date]=xd[w.date]||new Set()).add(w.extra);return}if(w.skipped)skipped.add(w.date);else if(!done.has(w.date))done.set(w.date,w.id)});
   const first=[...db.workouts].map(w=>w.date).sort()[0],t=today(),now=new Date();
   const md=new Date(now.getFullYear(),now.getMonth()+calOff,1),y=md.getFullYear(),mo=md.getMonth(),days=new Date(y,mo+1,0).getDate(),lead=(md.getDay()+6)%7;
-  let cells='',nd=0,nb=0,nr=0;
+  let cells='',nd=0,nb=0,nr=0;let hasA=false,hasY=false;
   for(let i=0;i<lead;i++)cells+='<span class="cday e"></span>';
   for(let d=1;d<=days;d++){const dt=new Date(y,mo,d),k=ymd(dt);let cls='',lab='';
     if(done.has(k)){cls='ok';lab='workout done';nd++}
     else if(k<t&&first&&k>=first){if(!skipped.has(k)&&sched(k)[(dt.getDay()+6)%7]==='Rest / walk'){cls='rest';lab='rest day';nr++}else{cls='bad';lab='skipped';nb++}}
-    const xs=xd[k]||new Set();if(xs.size)lab=[lab,...[...xs].map(x=>x+' done')].filter(Boolean).join(', ');
+    const xs=xd[k]||new Set();if(xs.has('abs'))hasA=true;if(xs.has('yoga'))hasY=true;if(xs.size)lab=[lab,...[...xs].map(x=>x+' done')].filter(Boolean).join(', ');
     const title=`${dt.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}${lab?': '+lab:''}`;
     const inner=`<span class="cn">${d}</span><span class="cdr"><i class="cd ${cls||(k>t?'fut':'')}"></i>${xs.has('abs')?'<i class="cx abs"></i>':''}${xs.has('yoga')?'<i class="cx yoga"></i>':''}</span>`;
     cells+=k>t?`<span class="cday fut">${inner}</span>`:`<button class="cday${k===sel?' sel':''}${k===t?' now':''}" data-act="cal-day" data-date="${k}" aria-label="${title}" aria-pressed="${k===sel}">${inner}</button>`}
   return `<section class="panel calp"><div class="calnav"><button class="iconbtn sm" data-act="cal-prev" aria-label="Previous month">${ico('back',18)}</button><div class="calt"><b>${md.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><span class="mut sm2">${nd} done · ${nb} skipped · ${nr} rest</span></div><button class="iconbtn sm" data-act="cal-next" aria-label="Next month" ${calOff>=0?'disabled':''}>${ico('chev',18)}</button></div>
   <div class="cwk">${['M','T','W','T','F','S','S'].map(x=>`<span>${x}</span>`).join('')}</div><div class="cgrid2">${cells}</div>
-  <div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Skipped</span><span><i class="cd rest"></i>Rest</span></div><div class="calleg" style="margin-top:8px"><span><i class="cx abs"></i>Abs</span><span><i class="cx yoga"></i>Yoga</span></div></section>`;
+  <div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Skipped</span><span><i class="cd rest"></i>Rest</span></div>${hasA||hasY?`<div class="calleg" style="margin-top:8px">${hasA?'<span><i class="cx abs"></i>Abs</span>':''}${hasY?'<span><i class="cx yoga"></i>Yoga</span>':''}</div>`:''}</section>`;
 }
 function dayHTML(date){
   const ws=db.workouts.filter(w=>w.date===date).sort((a,b)=>(a.created||0)-(b.created||0)),dt=new Date(date+'T00:00:00'),prW=new Set(allPRs().events.map(p=>p.wid));
