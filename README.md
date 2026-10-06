@@ -15,6 +15,7 @@ Works on iPhone and Android. Without an account, workouts are saved only on the 
 | `supabase.js` | Sign-in and cloud sync library (don't edit) |
 | `supabase-setup.sql` | Run once in Supabase to create the private database table (no need to upload it to GitHub, harmless if you do) |
 | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | App icons |
+| `demos/` | Start/finish exercise photos for the looping demos (public domain, from the free-exercise-db project; see `demos/LICENSE.md`) |
 | `README.md` | This guide |
 
 ## 1. Put the app online (free, about 10 minutes, one time)
