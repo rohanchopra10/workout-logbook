@@ -29,24 +29,41 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "no_key" }, 503);
 
-  let prompt = "";
-  try { prompt = String((await req.json())?.prompt ?? "").slice(0, 12000); } catch { /* bad body */ }
-  if (!prompt) return json({ error: "bad_request" }, 400);
+  // Either one feedback prompt {prompt} or a chat {system, messages:[{role, content}]}.
+  let body: any = {};
+  try { body = await req.json(); } catch { /* bad body */ }
+  let system: string | undefined;
+  let messages: { role: string; content: string }[] = [];
+  if (Array.isArray(body?.messages)) {
+    messages = body.messages.slice(-20)
+      .filter((m: any) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string" && m.content.trim())
+      .map((m: any) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+    system = typeof body.system === "string" ? body.system.slice(0, 16000) : undefined;
+    if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "bad_request" }, 400);
+  } else {
+    const prompt = String(body?.prompt ?? "").slice(0, 12000);
+    if (!prompt) return json({ error: "bad_request" }, 400);
+    messages = [{ role: "user", content: prompt }];
+  }
 
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model: Deno.env.get("COACH_MODEL") || "claude-sonnet-5",
-      max_tokens: 700,
-      messages: [{ role: "user", content: prompt }],
+      // Room for the model's built-in thinking plus the reply; low effort keeps it quick and cheap.
+      max_tokens: 4000,
+      output_config: { effort: "low" },
+      ...(system ? { system } : {}),
+      messages,
     }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
     const msg = JSON.stringify(d).toLowerCase();
-    return json({ error: /credit|billing|balance/.test(msg) ? "no_credit" : "api", status: r.status }, 502);
+    return json({ error: /credit|billing|balance/.test(msg) ? "no_credit" : "api", status: r.status, detail: d?.error?.message ?? "" }, 502);
   }
   const text = (d.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n").trim();
+  if (!text) return json({ error: "empty", stop: d.stop_reason ?? "" }, 502);
   return json({ text });
 });
