@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = await req.json(); } catch { /* bad body */ }
   let system: string | undefined;
-  let messages: { role: string; content: string }[] = [];
+  let messages: { role: string; content: any }[] = [];
   if (Array.isArray(body?.messages)) {
     messages = body.messages.slice(-20)
       .filter((m: any) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string" && m.content.trim())
@@ -43,7 +43,16 @@ Deno.serve(async (req) => {
   } else {
     const prompt = String(body?.prompt ?? "").slice(0, 12000);
     if (!prompt) return json({ error: "bad_request" }, 400);
-    messages = [{ role: "user", content: prompt }];
+    // Optional photos (body check-in): up to 3 small JPEG/PNG/WebP images as base64.
+    const imgs = Array.isArray(body?.images) ? body.images.slice(0, 3) : [];
+    const blocks: any[] = [];
+    for (const im of imgs) {
+      const mt = String(im?.media_type ?? "");
+      const data = String(im?.data ?? "");
+      if (!/^image\/(jpeg|png|webp)$/.test(mt) || !data || data.length > 2_000_000) return json({ error: "bad_image" }, 400);
+      blocks.push({ type: "image", source: { type: "base64", media_type: mt, data } });
+    }
+    messages = [{ role: "user", content: blocks.length ? [...blocks, { type: "text", text: prompt }] : prompt } as any];
   }
 
   const r = await fetch("https://api.anthropic.com/v1/messages", {
