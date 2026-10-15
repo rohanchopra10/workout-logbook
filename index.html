@@ -593,7 +593,7 @@ const TEMPLATES={
   'Core + Cardio':CORE_DAY
 };
 const ROT_EPOCH='2026-01-05';
-function rotationFor(d){const a=new Date(weekKey(d||today())+'T00:00:00'),b=new Date(ROT_EPOCH+'T00:00:00');const w=Math.round((a-b)/(7*864e5));return ((w%3)+3)%3}
+function rotationFor(d){const a=new Date(weekKey(d||today())+'T00:00:00'),b=new Date(ROT_EPOCH+'T00:00:00');const w=Math.floor(Math.round((a-b)/(7*864e5))/2);return ((w%3)+3)%3}
 const ROT_NAME=['A','B','C'];
 const ABS=new Set(['Captain\'s Chair Knee Raise','Russian Twist','Heel Taps','Cable Crunch','Side Plank','Hanging Knee Raise','Cable Side Bend','Reverse Crunch','Pallof Press','Decline Bench Crunch','Lying Leg Raise','Plank','Cable Woodchop','Captain\'s Chair Knee Raise','Ab Coaster','Heel Taps','Russian Twist','Leg Raises','Ab Crunch Machine','Kneeling Ab Crunch Machine'].map(n=>n.toLowerCase()));
 const EXTRA=['Single-Arm Cable Pulldown','Chest-Supported Machine Row','Cable Crossover','Flat DB Press','Lying Leg Curl','Cable Front Raise','Rope Pushdown','Machine Preacher Curl','EZ-Bar Skull Crusher','Pallof Press','Cable Side Bend','Cable Woodchop','Bulgarian Split Squat','Walking Lunges','Standing Calf Raise','Cable Pull-Through','One-Arm DB Row','T-Bar Row','Bayesian Cable Curl','Cross-Body Hammer Curl','Cable Woodchop','Hanging Knee Raise','Captain\'s Chair Knee Raise','Plank','Cable Crunch','Ab Coaster','Decline Bench Crunch','Lying Leg Raise','Heel Taps','Russian Twist','Machine Lateral Raise','Assisted Dips'];
@@ -1035,7 +1035,12 @@ function customList(parts,date){
   const core=CORE_DAY[r%CORE_DAY.length];out.push(...(parts.includes('Core')?core.slice(0,lifts.length?4:7):core.slice(0,2)));
   return out;
 }
-function templateFor(type,date){const cp=customParts(type);if(cp)return customList(cp,date).map(name=>({name}));const v=TEMPLATES[type];return v?(v[rotationFor(date)%v.length]||[]).map(name=>({name})):[]}
+/* AI 2-week plan: one set of exercises per session for 14 days from its Monday. */
+const AIP_DAYS=14;
+function addD(d,n){const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+n);return ymd(x)}
+function aiPlanFor(date){const p=db.settings&&db.settings.aiPlan,d=date||today();if(!p||!p.start||!p.plans||p.split!==activePlan())return null;return d>=p.start&&d<addD(p.start,AIP_DAYS)?p:null}
+function weekInBlock(date){const p=aiPlanFor(date);if(p)return Math.floor((new Date((date||today())+'T00:00:00')-new Date(p.start+'T00:00:00'))/(7*864e5))+1;const a=new Date(weekKey(date||today())+'T00:00:00'),b=new Date(ROT_EPOCH+'T00:00:00');return (Math.round((a-b)/(7*864e5))%2+2)%2+1}
+function templateFor(type,date){{const p=aiPlanFor(date);if(p&&Array.isArray(p.plans[type])&&p.plans[type].length)return p.plans[type].map(name=>({name}))}const cp=customParts(type);if(cp)return customList(cp,date).map(name=>({name}));const v=TEMPLATES[type];return v?(v[rotationFor(date)%v.length]||[]).map(name=>({name})):[]}
 function sessionFor(d){const dt=new Date((d||today())+'T00:00:00');return sched(d||today())[(dt.getDay()+6)%7]}
 const coreDayType=t=>t==='Core + Cardio'||(customParts(t)||[]).includes('Core');
 function mainTemplate(type,date){const l=templateFor(type,date);return coreDayType(type)?l:l.filter(e=>!isAbs(e.name))}
@@ -1163,7 +1168,7 @@ function weekStrip(){
   const skippedDates=new Set(db.workouts.filter(w=>w.skipped).map(w=>w.date));
   return `<section class="panel"><div class="plansum"><span><b>${plan==='double'?'Double-part':'Single-part'}</b>, ${trainDays().length} days a week</span><button class="ghost sm" data-act="edit-week">Edit</button></div>
   <div class="week">${sched().map((s,i)=>{const rest=s==='Rest / walk',done=!rest&&logged.has(s),sk=!done&&skippedDates.has(dateOf(i));return `<button class="day${i===ti?' today':''}${(viewDay!=null?i===viewDay:i===ti)?' sel':''}" data-act="day" data-day="${i}" aria-label="${days[i]}: ${esc(s)}${done?', done':sk?', skipped':''}"><span class="dn">${days[i]}</span><span class="ds">${esc(shortName(s))}</span>${done?'<span class="dk">Done</span>':sk?'<span class="dk sk">Skipped</span>':''}</button>`}).join('')}</div>
-  ${weekSwapped()?`<p class="hint" style="margin:8px 0 0">You swapped days this week. <button class="linkbtn" data-act="week-reset">Reset to normal</button></p>`:''}<p class="hint">Exercise rotation ${ROT_NAME[rotationFor()]} this week. Exercises change every Monday; the first lifts stay the same so you can track progress. Tap a day to preview its plan. Change today's workout from the menu below. Finished days open in History.</p></section>`;
+  ${weekSwapped()?`<p class="hint" style="margin:8px 0 0">You swapped days this week. <button class="linkbtn" data-act="week-reset">Reset to normal</button></p>`:''}<p class="hint">${planNote()} Tap a day to preview its plan. Change today's workout from the menu below. Finished days open in History.</p></section>`;
 }
 function weighCard(){
   const mon=weekKey(today());if(db.weights.some(x=>weekKey(x.date)===mon))return '';
@@ -1370,6 +1375,70 @@ Next session targets
 Put every point on its own line starting with "- ". In "Next session targets" write one line per exercise like "- Hack Squat: 25 kg × 10–12 × 3".`;
 }
 
+
+/* ---------- AI 2-week plan generator (owner only, same coach function) ---------- */
+let aipBusy=false;
+function planNote(){const p=aiPlanFor(),end=p?addD(p.start,AIP_DAYS-1):null;if(p)return `Your AI coach made this plan. Same exercises until ${new Date(end+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}, then you get a new one.`;return 'Exercises stay the same for 2 weeks, then change.'}
+function aiPlanPrompt(){
+  const split=activePlan(),sessions=[...new Set(ORDER[split])],p=prefs(),st=db.settings;
+  const cats=['Chest','Back','Shoulders','Traps','Biceps','Triceps','Legs','Core','Full Body'];
+  const lib=cats.map(c=>`${c}: ${LIB.filter(e=>e.cat===c&&hasEquip(e)&&!isAvoided(e.name)&&!e.niche).map(e=>e.name).join(', ')}`).join('\n');
+  const old=st.aiPlan&&st.aiPlan.plans||{};
+  const prev=sessions.map(s=>`${s}: ${((old[s]&&old[s].length)?old[s]:templateFor(s,today()).map(x=>x.name)).join(', ')}`).join('\n');
+  const recent=sorted().filter(w=>isMain(w)).slice(0,8).map(w=>`${w.date} ${w.type}: ${w.exercises.map(e=>`${e.name} ${e.sets.map(fmtSet).join(', ')}`).join('; ')}`).join('\n');
+  return `You are a strength coach. Write my next 2-week gym plan. I do the same exercises for 2 weeks, then get a new plan, because I don't want to repeat the same workouts.
+Goal: ${goalNow()}. Training ${trainDays().length} days a week, ${split==='double'?'double-part split (two muscle groups per day)':'single-part split (one muscle group per day)'}. Background: ${st.bg||'not given'}.
+Liked exercises: ${p.like.join(', ')||'none'}.
+
+SESSIONS TO PLAN
+${sessions.join('\n')}
+
+RULES
+- Use ONLY exercises from the library below, spelled exactly as written.
+- Each session: 6 or 7 exercises. Big compound lifts first, isolation after.
+- Double-part sessions: split the exercises fairly between both muscle groups.
+- No abs or core exercises in any session except "Core + Cardio" (abs are done separately). "Core + Cardio" gets 6 or 7 core exercises.
+- Change most exercises from my previous plan. Keep at most one main compound lift per session so I can track progress.
+- Don't use the same exercise in two different sessions.
+- Prefer exercises I like, and mix free weights, cables and machines.
+
+LIBRARY (only these)
+${lib}
+
+PREVIOUS PLAN
+${prev}
+
+RECENT WORKOUTS
+${recent||'none'}
+
+Reply with ONLY a JSON object, no other text. Keys are the session names exactly as listed, values are arrays of exercise names. Example: {"${sessions[0]}": ["Exercise", "Exercise"]}`;
+}
+function aiPlanParse(text){
+  const split=activePlan(),sessions=[...new Set(ORDER[split])];let obj=null;
+  try{const a=text.indexOf('{'),b=text.lastIndexOf('}');obj=JSON.parse(text.slice(a,b+1))}catch(e){return null}
+  if(!obj||typeof obj!=='object')return null;
+  const out={},used=new Set();let good=0;
+  for(const s of sessions){
+    const core=coreDayType(s),list=[];
+    for(const n of (Array.isArray(obj[s])?obj[s]:[])){const e=libFor(String(n));if(!e||e.cat==='Yoga'||!hasEquip(e)||isAvoided(e.name))continue;if(!core&&isAbs(e.name))continue;const k=norm(e.name);if(list.some(x=>norm(x)===k))continue;list.push(e.name)}
+    if(list.length>=4){out[s]=list.slice(0,8);good++;list.forEach(n=>used.add(norm(n)))}
+  }
+  return good>=Math.ceil(sessions.length/2)?out:null;
+}
+async function makeAiPlan(force){
+  if(aipBusy||!coachMine())return;
+  if(!force){if(aiPlanFor(today())||acct.state==='syncing')return;try{if(localStorage.getItem('aip-try')===today())return;localStorage.setItem('aip-try',today())}catch(e){}}
+  aipBusy=true;if(force){toast('Your coach is building a new plan…');if(tab==='profile')renderProfile()}
+  let plans=null;
+  try{const {data,error}=await acct.sb.functions.invoke('coach',{body:{prompt:aiPlanPrompt()}});if(!error&&data&&data.text)plans=aiPlanParse(data.text)}catch(e){}
+  aipBusy=false;
+  if(!plans){if(force)toast('Couldn’t make a new plan right now. Try again later.');if(tab==='profile')renderProfile();return}
+  db.settings.aiPlan={start:weekKey(today()),made:today(),split:activePlan(),plans};
+  if(!persist())return;
+  if(!draft.editingId&&!setsFilled()&&!draft.extra){freshDraft();saveDraft()}
+  render();toast('New 2-week plan ready');
+}
+
 /* ---------- Chat with the coach (owner only, same server function) ---------- */
 const CHAT_KEY='logbook-chat';
 let chat={msgs:[],busy:false};
@@ -1432,7 +1501,7 @@ $('#chat-list').addEventListener('click',e=>{const b=e.target.closest('[data-q]'
 
 /* AI coach: only for the account whose email hash is in config.js; the server checks again. */
 let coachHash=null;
-async function coachInit(){coachHash=null;try{const e=String(acct.user&&acct.user.email||'').trim().toLowerCase(),want=String(CFG.coachFor||'');if(!e||!want||!crypto.subtle)return;const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(e));coachHash=[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');if(tab==='history')renderHistory()}catch(err){}}
+async function coachInit(){setTimeout(()=>makeAiPlan(false),9000);coachHash=null;try{const e=String(acct.user&&acct.user.email||'').trim().toLowerCase(),want=String(CFG.coachFor||'');if(!e||!want||!crypto.subtle)return;const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(e));coachHash=[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');if(tab==='history')renderHistory()}catch(err){}}
 const coachMine=()=>!!(acct.sb&&acct.user&&coachHash&&coachHash===String(CFG.coachFor||''));
 async function getFeedback(id,manual){
   const w=db.workouts.find(x=>x.id===id);if(!w||w.extra||w.skipped||!coachMine()||(fbLive[id]&&fbLive[id].busy))return;
@@ -2044,7 +2113,7 @@ function renderProfile(){
   const chip=(k,v)=>`<section class="panel tight"><div class="xs">${k}</div><div class="num" style="font-size:17px;margin-top:2px">${esc(v)}</div></section>`;
   view.innerHTML=`<div class="prof-head"><span class="avatar big">${esc((st.name||'?').trim().charAt(0).toUpperCase())}</span><div class="f1"><h1 class="wo-t">${esc(st.name||'Your profile')}</h1><div class="mut sm2">${first?'Training since '+esc(new Date(first.date+'T00:00:00').toLocaleDateString(undefined,{month:'short',year:'numeric'})):'Welcome'}</div></div><button class="iconbtn" data-act="open-settings" aria-label="Settings">${ico('settings',20)}</button></div>
   <div class="trio">${chip('Height',st.height?st.height+' cm':'—')}${chip('Goal',goalNow().replace('Body Recomposition','Recomp'))}${chip('Days',trainDays().length+' / wk')}</div>
-  <section class="panel"><div class="row-sb"><h2>This week's plan</h2><span class="acc sm2" style="font-weight:700">${activePlan()==='double'?'Double-part':'Single-part'}</span></div><div class="plan">${sched().map((s,i)=>`<div class="lrow"><span class="mut sm2" style="width:44px">${DAYS[i]}</span><b class="f1">${esc(s==='Rest / walk'?'Rest':s)}</b>${i===ti?'<span class="badge2">TODAY</span>':''}</div>`).join('')}<div class="lrow"><span class="mut sm2" style="width:44px">Extra</span><b class="f1">🔥 Abs ${esc(crLabel(crSet().abs))} · 🧘 Yoga ${esc(crLabel(crSet().yoga))}</b></div></div><div class="btnrow"><button class="ghost sm" data-act="edit-profile">${ico('edit',15)} Edit profile &amp; plan</button></div></section>
+  <section class="panel"><div class="row-sb"><h2>This week's plan</h2><span class="acc sm2" style="font-weight:700">${activePlan()==='double'?'Double-part':'Single-part'}</span></div><div class="plan">${sched().map((s,i)=>`<div class="lrow"><span class="mut sm2" style="width:44px">${DAYS[i]}</span><b class="f1">${esc(s==='Rest / walk'?'Rest':s)}</b>${i===ti?'<span class="badge2">TODAY</span>':''}</div>`).join('')}<div class="lrow"><span class="mut sm2" style="width:44px">Extra</span><b class="f1">🔥 Abs ${esc(crLabel(crSet().abs))} · 🧘 Yoga ${esc(crLabel(crSet().yoga))}</b></div></div><p class="hint" style="margin:10px 0 0">${planNote()}</p><div class="btnrow"><button class="ghost sm" data-act="edit-profile">${ico('edit',15)} Edit profile &amp; plan</button>${coachMine()?`<button class="ghost sm" data-act="aip-new">${aipBusy?'Building…':'New plan now'}</button>`:''}</div></section>
   <button class="card-row" data-act="open-lib"><span class="ic-tile">${ico('book',22)}</span><span class="f1"><b>Exercise Library</b><span class="mut sm2" style="display:block">${LIB.length} exercises with demos</span></span><span class="mut">${ico('chev',18)}</span></button>
   <button class="card-row" data-act="open-equip"><span class="ic-tile">${ico('weight',22)}</span><span class="f1"><b>My gym equipment</b><span class="mut sm2" style="display:block">${EQUIP.length-EQUIP.filter(([k])=>missing().has(k)).length} of ${EQUIP.length} available</span></span><span class="mut">${ico('chev',18)}</span></button>
   ${prefsHTML()}${accountHTML()}`;
@@ -2149,7 +2218,7 @@ function homeHTML(){
   if(sk)hero=`<section class="hero muted"><div class="hero-k">Today</div><div class="hero-t">Skipped</div><div class="hero-m">${esc(sk.type)} is skipped. Rest up.</div><button class="hero-b" data-act="unskip">Undo skip</button></section>`;
   else if(sv){const n=sv.exercises.reduce((a,e)=>a+e.sets.length,0);hero=`<section class="hero"><div class="row-sb"><span class="hero-k">Today · done</span><span class="hero-tag">${ico('check',14,3)} Saved</span></div><div class="hero-t">${esc(sv.type)}</div><div class="hero-m">${sv.exercises.length?`${plur(sv.exercises.length,'exercise')} · ${plur(n,'set')}`:'Cardio only'}</div><div class="hero-row"><button class="hero-b" data-act="view-today" data-id="${sv.id}">See workout</button><button class="hero-b2" data-act="add-more">Add more</button></div></section>`}
   else if(d.type==='Rest / walk')hero=`<section class="hero"><div class="hero-k">Today</div><div class="hero-t">Rest day</div><div class="hero-m">An easy 20–40 min walk is a good idea.</div><div class="hero-row"><button class="hero-b" data-act="start-workout">Log a walk</button></div></section>`;
-  else hero=`<section class="hero"><div class="row-sb"><span class="hero-k">Today's workout</span><span class="hero-tag">${esc(ROT_NAME[rotationFor()]?('Week '+ROT_NAME[rotationFor()]):'')}</span></div><div class="hero-t">${esc(d.type)}</div><div class="hero-m">${plur(d.exercises.length,'exercise')} · ${plur(sets,'set')} · ~${Math.max(20,Math.round(sets*2.6/5)*5)} min</div><button class="hero-b" data-act="start-workout">Start workout ${ico('arrow',18,2.4)}</button></section>`;
+  else hero=`<section class="hero"><div class="row-sb"><span class="hero-k">Today's workout</span><span class="hero-tag">${aiPlanFor()?'AI plan · ':''}Week ${weekInBlock()} of 2</span></div><div class="hero-t">${esc(d.type)}</div><div class="hero-m">${plur(d.exercises.length,'exercise')} · ${plur(sets,'set')} · ~${Math.max(20,Math.round(sets*2.6/5)*5)} min</div><button class="hero-b" data-act="start-workout">Start workout ${ico('arrow',18,2.4)}</button></section>`;
   const pr=allPRs().events.slice(-1)[0];
   const prCard=pr?`<button class="card-row prcard" data-act="open-records"><span class="ic-tile">${ico('trophy',22)}</span><span class="f1"><span class="xs acc">${pr.date===today()?'New personal record':'Latest record · '+esc(shortDate(pr.date))}</span><b>${esc(pr.name)}</b></span><span class="num big2">${fmtNum(pr.w)} kg × ${pr.r}</span></button>`:'';
   return `<div class="home-head"><div><div class="xs">${esc(new Date().toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}))}</div><h1 class="home-h">${greet()},<br>${esc(st.name||'there')}</h1><div class="home-sync">${ico('cloud',15)} ${esc(syncLabel())}</div></div><button class="avatar" data-act="go-profile" aria-label="Profile">${esc((st.name||'?').trim().charAt(0).toUpperCase())}</button></div>
@@ -2304,6 +2373,7 @@ view.addEventListener('click',e=>{
   if(act==='cx-rm'){const L=ensureCx();L.splice(+b.dataset.ci,1);draft.cardio=cardioText(L);saveDraft();renderLog();return}
   if(act==='fb-copy'){const w=db.workouts.find(x=>x.id===b.dataset.id);if(w)copyText(fbPrompt(w),'Workout for Claude');return}
   if(act==='fb-paste'){const id=b.dataset.id;openModal({title:'Save coach feedback',text:'Paste Claude’s reply to keep it with this workout.',area:{value:'',placeholder:'Paste the feedback here'},ok:{label:'Save feedback',fn:v=>{const w=db.workouts.find(x=>x.id===id);if(w&&String(v).trim()){w.feedback={text:String(v).trim(),date:today()};persist();closeModal();paintFb(id);toast('Feedback saved')}}}});return}
+  if(act==='aip-new'){if(aipBusy)return;ask('Make a new plan now?','Your AI coach will pick new exercises for every workout day. They stay the same for the next 2 weeks.','Make new plan',()=>makeAiPlan(true));return}
   if(act==='open-chat'){openChat();return}
   if(act==='fb-ai'){getFeedback(b.dataset.id,true);return}
   if(act==='fb-stop'){const L=fbLive[b.dataset.id];if(L&&L.ctl)L.ctl.abort();return}
