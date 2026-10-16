@@ -409,6 +409,7 @@ body.noscroll{overflow:hidden}
 .bc-past summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer}.bc-past summary::-webkit-details-marker{display:none}
 .bc-chev{width:34px;height:34px;border-radius:10px;background:var(--field);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none;transition:transform .15s}
 .bc-past[open] .bc-chev{transform:rotate(90deg)}
+.bc-opt{margin-top:12px;border-top:1px solid var(--line)}.bc-opt .chip2:not(.on){background:var(--field)}.bc-opt .srow{border-top:0}
 .bc-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .bc-slot{position:relative;aspect-ratio:3/4;border-radius:16px;border:1.5px dashed #4A4E62;background:var(--field);color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;min-height:0;overflow:hidden;font:600 13px "Manrope",system-ui,sans-serif;width:100%}
 .bc-slot b{font-size:28px;line-height:1;color:var(--accent)}
@@ -1403,6 +1404,7 @@ function bodyHTML(){
   let h=`<section class="panel"><div class="row-sb"><h2>Body check</h2><span class="mut sm2">AI coach</span></div>
   <p class="hint" style="margin:4px 0 12px">Add 1 to 3 photos in good light, same spot each time. Your coach looks at them with your goal and training, and tells you what to focus on. Photos stay on this phone.</p>
   <div class="bc-slots">${BC_VIEWS.map(([k,l])=>bc.pending[k]?`<div class="bc-slot has"><img src="${bc.pending[k]}" alt="${l} photo"><button class="bc-x" data-act="bc-rm" data-v="${k}" aria-label="Remove ${l} photo">✕</button><span>${l}</span></div>`:`<button class="bc-slot" data-act="bc-add" data-v="${k}"><b>+</b><span>${l}</span></button>`).join('')}</div>
+  <div class="bc-opt"><button class="srow eqrow" data-act="bc-diet" aria-pressed="${!!db.settings.dietWant}"><span class="f1">Include a diet plan<span class="mut sm2" style="display:block">Calories, protein and a sample day of meals</span></span><i class="eqdot" aria-hidden="true"></i></button>${db.settings.dietWant?`<div class="chips" style="margin:6px 0 0;padding:0">${[['veg','Vegetarian'],['egg','Eggetarian'],['nonveg','Non-veg']].map(([k,l])=>`<button class="chip2${(db.settings.dietType||'nonveg')===k?' on':''}" data-act="bc-dtype" data-v="${k}">${l}</button>`).join('')}</div>`:''}<p class="mut sm2" style="margin:8px 2px 0">Daily water advice is always included.</p></div>
   ${bc.busy?`<p class="hint fbwait" style="margin:12px 0 0"><span class="fbspin" aria-hidden="true"></span>Your coach is looking at your photos…</p>`:`${bc.msg?`<p class="hint" style="margin:10px 0 0">${esc(bc.msg)}</p>`:''}<button class="primary bigbtn" style="margin-top:12px" data-act="bc-run" ${n?'':'disabled'}>Get body guidance</button>`}
   </section>`;
   if(past.length)h+=past.map(c=>`<details class="panel bc-past"${bcOpen.has(c.id)?' open':''} data-bc="${c.id}"><summary><span class="bc-chev" aria-hidden="true">${ico('chev',18)}</span><span class="f1"><span class="xs" style="display:block">Body check</span><b class="num" style="font-size:18px">${esc(niceDate(c.date))}</b></span><span class="mut sm2">${plur((c.views||[]).length,'photo')}</span></summary>${c.views&&c.views.length?`<div class="bc-thumbs">${c.views.map(v=>`<img data-ph="${c.id}:${v}" alt="${v} photo, ${esc(c.date)}">`).join('')}</div>`:''}<div class="fb" style="margin-top:10px">${fmtFb(c.text)}</div><div class="btnrow" style="margin-top:10px">${c===past[0]?`<button class="primary sm" data-act="aip-new">${aipBusy?'Building plan…':'Update my plan with this'}</button>`:''}<button class="ghost sm" data-act="bc-del" data-id="${c.id}">Delete check-in</button></div></details>`).join('');
@@ -1410,6 +1412,7 @@ function bodyHTML(){
 }
 async function bcPaint(){for(const im of document.querySelectorAll('img[data-ph]')){const v=await idbGet(im.dataset.ph);if(v)im.src=v;else im.remove()}}
 function bcPrompt(views){
+  const diet=!!db.settings.dietWant;
   const st=db.settings,ws=[...db.weights].sort((a,b)=>a.date<b.date?-1:1).slice(-8).map(x=>`${x.date} ${x.kg} kg`).join(', ');
   const last=bcList().sort((a,b)=>a.date<b.date?1:-1)[0];
   const done=sorted().filter(isMain).slice(0,8).map(w=>`${w.date} ${w.type}`).join(', ');
@@ -1420,12 +1423,18 @@ ${last?`My last check-in on ${last.date} said: ${String(last.text).slice(0,600)}
 Look at the photos and guide me. Be honest but respectful and encouraging. Don't comment on attractiveness, don't shame, and don't give a body-fat percentage. Don't diagnose medical issues; if something looks like it needs a doctor or physio (for example a clear posture or joint problem), just suggest getting it checked. Never promise spot fat loss.
 If a photo is not a body photo, say so briefly and skip it.
 
-Reply in plain text under 200 words, no markdown symbols like ** or #. Use these section titles, each alone on its own line:
+I live in India (hot climate) and train ${trainDays().length} days a week.${diet?` I want a diet plan. My food preference: ${({veg:'vegetarian (no egg, no meat, no fish)',egg:'eggetarian (vegetarian plus eggs)',nonveg:'non-vegetarian'})[db.settings.dietType||'nonveg']}. Use common Indian foods I can buy easily.`:''}
+Diet safety: keep any calorie deficit moderate (about 300-500 kcal below maintenance for fat loss), never below a safe minimum, no crash diets, no supplements beyond basics like whey protein or creatine. If I might have a medical condition, tell me to check with a doctor or dietitian.
+
+Reply in plain text under ${diet?320:230} words, no markdown symbols like ** or #. Use these section titles, each alone on its own line:
 What I see
 Focus for the next 4 weeks
 Training changes
-Food and recovery
-Put each point on its own line starting with "- ". Be specific (muscle groups, exercises, sets, daily habits).`;
+Water
+${diet?'Daily diet\n':''}Recovery
+Put each point on its own line starting with "- ". Be specific (muscle groups, exercises, sets, daily habits).
+In "Water" give a daily amount in litres for rest days and training days based on my weight and climate, plus when to drink.
+${diet?'In "Daily diet" give daily calories and protein in grams (as ranges), then a sample day: breakfast, lunch, pre-workout, post-workout, dinner, with rough portions.':'In "Recovery" also give a daily protein target in grams.'}`;
 }
 async function bcRun(){
   const views=BC_VIEWS.map(v=>v[0]).filter(k=>bc.pending[k]);if(!views.length||bc.busy)return;
@@ -2451,6 +2460,8 @@ view.addEventListener('click',e=>{
   if(act==='bc-add'){bc.slot=b.dataset.v;$('#bc-file').click();return}
   if(act==='bc-rm'){delete bc.pending[b.dataset.v];renderWeight();return}
   if(act==='bc-run'){bcRun();return}
+  if(act==='bc-diet'){db.settings.dietWant=!db.settings.dietWant;persist();renderWeight();return}
+  if(act==='bc-dtype'){db.settings.dietType=b.dataset.v;persist();renderWeight();return}
   if(act==='bc-del'){const id=b.dataset.id;ask('Delete this body check?','The photos and advice will be removed.','Delete',()=>{const c=bcList().find(x=>x.id===id);db.settings.bodyChecks=bcList().filter(x=>x.id!==id);persist();if(c)(c.views||[]).forEach(v=>idbDel(id+':'+v));renderWeight()},true);return}
   if(act==='aip-new'){if(aipBusy)return;ask('Make a new plan now?','Your AI coach will pick new exercises for every workout day, using your latest body check. They stay the same for the next 2 weeks.','Make new plan',()=>makeAiPlan(true));return}
   if(act==='open-chat'){openChat();return}
