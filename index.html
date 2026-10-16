@@ -406,6 +406,9 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .chat-in textarea{flex:1;width:auto;min-width:0;resize:none;min-height:46px;max-height:120px;border-radius:16px;font-size:16px;padding:12px 14px;margin:0}
 .chat-in button{height:46px;min-height:46px;padding:0 18px;border-radius:16px;flex:none;width:auto}
 body.noscroll{overflow:hidden}
+.bc-past summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer}.bc-past summary::-webkit-details-marker{display:none}
+.bc-chev{width:34px;height:34px;border-radius:10px;background:var(--field);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:none;transition:transform .15s}
+.bc-past[open] .bc-chev{transform:rotate(90deg)}
 .bc-slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .bc-slot{position:relative;aspect-ratio:3/4;border-radius:16px;border:1.5px dashed #4A4E62;background:var(--field);color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;min-height:0;overflow:hidden;font:600 13px "Manrope",system-ui,sans-serif;width:100%}
 .bc-slot b{font-size:28px;line-height:1;color:var(--accent)}
@@ -1386,7 +1389,8 @@ Put every point on its own line starting with "- ". In "Next session targets" wr
 
 /* ---------- Body check: photos + AI guidance (owner only). Photos stay on this phone (IndexedDB); only the advice syncs. ---------- */
 const BC_VIEWS=[['front','Front'],['side','Side'],['back','Back']];
-const bc={pending:{},slot:null,busy:false,msg:''};
+const bc={pending:{},slot:null,busy:false,msg:''},bcOpen=new Set();
+document.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset&&d.dataset.bc){d.open?bcOpen.add(d.dataset.bc):bcOpen.delete(d.dataset.bc)}},true);
 function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open('logbook-photos',1);r.onupgradeneeded=()=>r.result.createObjectStore('p');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
 async function idbSet(k,v){try{const d=await idb();await new Promise((res,rej)=>{const t=d.transaction('p','readwrite');t.objectStore('p').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}}
 async function idbGet(k){try{const d=await idb();return await new Promise(res=>{const r=d.transaction('p').objectStore('p').get(k);r.onsuccess=()=>res(r.result||null);r.onerror=()=>res(null)})}catch(e){return null}}
@@ -1401,7 +1405,7 @@ function bodyHTML(){
   <div class="bc-slots">${BC_VIEWS.map(([k,l])=>bc.pending[k]?`<div class="bc-slot has"><img src="${bc.pending[k]}" alt="${l} photo"><button class="bc-x" data-act="bc-rm" data-v="${k}" aria-label="Remove ${l} photo">✕</button><span>${l}</span></div>`:`<button class="bc-slot" data-act="bc-add" data-v="${k}"><b>+</b><span>${l}</span></button>`).join('')}</div>
   ${bc.busy?`<p class="hint fbwait" style="margin:12px 0 0"><span class="fbspin" aria-hidden="true"></span>Your coach is looking at your photos…</p>`:`${bc.msg?`<p class="hint" style="margin:10px 0 0">${esc(bc.msg)}</p>`:''}<button class="primary bigbtn" style="margin-top:12px" data-act="bc-run" ${n?'':'disabled'}>Get body guidance</button>`}
   </section>`;
-  if(past.length)h+=past.map(c=>`<section class="panel bc-past"><div class="row-sb"><div><div class="xs">Body check</div><b class="num" style="font-size:18px">${esc(niceDate(c.date))}</b></div><button class="icon" data-act="bc-del" data-id="${c.id}" aria-label="Delete body check">✕</button></div>${c.views&&c.views.length?`<div class="bc-thumbs">${c.views.map(v=>`<img data-ph="${c.id}:${v}" alt="${v} photo, ${esc(c.date)}">`).join('')}</div>`:''}<div class="fb" style="margin-top:10px">${fmtFb(c.text)}</div></section>`).join('');
+  if(past.length)h+=past.map(c=>`<details class="panel bc-past"${bcOpen.has(c.id)?' open':''} data-bc="${c.id}"><summary><span class="bc-chev" aria-hidden="true">${ico('chev',18)}</span><span class="f1"><span class="xs" style="display:block">Body check</span><b class="num" style="font-size:18px">${esc(niceDate(c.date))}</b></span><span class="mut sm2">${plur((c.views||[]).length,'photo')}</span></summary>${c.views&&c.views.length?`<div class="bc-thumbs">${c.views.map(v=>`<img data-ph="${c.id}:${v}" alt="${v} photo, ${esc(c.date)}">`).join('')}</div>`:''}<div class="fb" style="margin-top:10px">${fmtFb(c.text)}</div><div class="btnrow" style="margin-top:10px"><button class="ghost sm" data-act="bc-del" data-id="${c.id}">Delete check-in</button></div></details>`).join('');
   return h;
 }
 async function bcPaint(){for(const im of document.querySelectorAll('img[data-ph]')){const v=await idbGet(im.dataset.ph);if(v)im.src=v;else im.remove()}}
