@@ -1405,7 +1405,7 @@ function bodyHTML(){
   <div class="bc-slots">${BC_VIEWS.map(([k,l])=>bc.pending[k]?`<div class="bc-slot has"><img src="${bc.pending[k]}" alt="${l} photo"><button class="bc-x" data-act="bc-rm" data-v="${k}" aria-label="Remove ${l} photo">✕</button><span>${l}</span></div>`:`<button class="bc-slot" data-act="bc-add" data-v="${k}"><b>+</b><span>${l}</span></button>`).join('')}</div>
   ${bc.busy?`<p class="hint fbwait" style="margin:12px 0 0"><span class="fbspin" aria-hidden="true"></span>Your coach is looking at your photos…</p>`:`${bc.msg?`<p class="hint" style="margin:10px 0 0">${esc(bc.msg)}</p>`:''}<button class="primary bigbtn" style="margin-top:12px" data-act="bc-run" ${n?'':'disabled'}>Get body guidance</button>`}
   </section>`;
-  if(past.length)h+=past.map(c=>`<details class="panel bc-past"${bcOpen.has(c.id)?' open':''} data-bc="${c.id}"><summary><span class="bc-chev" aria-hidden="true">${ico('chev',18)}</span><span class="f1"><span class="xs" style="display:block">Body check</span><b class="num" style="font-size:18px">${esc(niceDate(c.date))}</b></span><span class="mut sm2">${plur((c.views||[]).length,'photo')}</span></summary>${c.views&&c.views.length?`<div class="bc-thumbs">${c.views.map(v=>`<img data-ph="${c.id}:${v}" alt="${v} photo, ${esc(c.date)}">`).join('')}</div>`:''}<div class="fb" style="margin-top:10px">${fmtFb(c.text)}</div><div class="btnrow" style="margin-top:10px"><button class="ghost sm" data-act="bc-del" data-id="${c.id}">Delete check-in</button></div></details>`).join('');
+  if(past.length)h+=past.map(c=>`<details class="panel bc-past"${bcOpen.has(c.id)?' open':''} data-bc="${c.id}"><summary><span class="bc-chev" aria-hidden="true">${ico('chev',18)}</span><span class="f1"><span class="xs" style="display:block">Body check</span><b class="num" style="font-size:18px">${esc(niceDate(c.date))}</b></span><span class="mut sm2">${plur((c.views||[]).length,'photo')}</span></summary>${c.views&&c.views.length?`<div class="bc-thumbs">${c.views.map(v=>`<img data-ph="${c.id}:${v}" alt="${v} photo, ${esc(c.date)}">`).join('')}</div>`:''}<div class="fb" style="margin-top:10px">${fmtFb(c.text)}</div><div class="btnrow" style="margin-top:10px">${c===past[0]?`<button class="primary sm" data-act="aip-new">${aipBusy?'Building plan…':'Update my plan with this'}</button>`:''}<button class="ghost sm" data-act="bc-del" data-id="${c.id}">Delete check-in</button></div></details>`).join('');
   return h;
 }
 async function bcPaint(){for(const im of document.querySelectorAll('img[data-ph]')){const v=await idbGet(im.dataset.ph);if(v)im.src=v;else im.remove()}}
@@ -1455,6 +1455,7 @@ function aiPlanPrompt(){
   const lib=cats.map(c=>`${c}: ${LIB.filter(e=>e.cat===c&&hasEquip(e)&&!isAvoided(e.name)&&!e.niche).map(e=>e.name).join(', ')}`).join('\n');
   const old=st.aiPlan&&st.aiPlan.plans||{};
   const prev=sessions.map(s=>`${s}: ${((old[s]&&old[s].length)?old[s]:templateFor(s,today()).map(x=>x.name)).join(', ')}`).join('\n');
+  const bcl=bcList().filter(c=>c.date>=addD(today(),-56)).sort((a,b)=>a.date<b.date?1:-1)[0];
   const recent=sorted().filter(w=>isMain(w)).slice(0,8).map(w=>`${w.date} ${w.type}: ${w.exercises.map(e=>`${e.name} ${e.sets.map(fmtSet).join(', ')}`).join('; ')}`).join('\n');
   return `You are a strength coach. Write my next 2-week gym plan. I do the same exercises for 2 weeks, then get a new plan, because I don't want to repeat the same workouts.
 Goal: ${goalNow()}. Training ${trainDays().length} days a week, ${split==='double'?'double-part split (two muscle groups per day)':'single-part split (one muscle group per day)'}. Background: ${st.bg||'not given'}.
@@ -1475,7 +1476,10 @@ RULES
 LIBRARY (only these)
 ${lib}
 
-PREVIOUS PLAN
+${bcl?`MY LATEST BODY CHECK (${bcl.date}) - your own advice from my photos. Build this plan around it: give the muscle groups it says to focus on more exercises and sets, and follow its training changes.
+${String(bcl.text).slice(0,1500)}
+
+`:''}PREVIOUS PLAN
 ${prev}
 
 RECENT WORKOUTS
@@ -1506,7 +1510,7 @@ async function makeAiPlan(force){
   db.settings.aiPlan={start:weekKey(today()),made:today(),split:activePlan(),plans};
   if(!persist())return;
   if(!draft.editingId&&!setsFilled()&&!draft.extra){freshDraft();saveDraft()}
-  render();toast('New 2-week plan ready');
+  render();if(tab==='weight')renderWeight();toast('New 2-week plan ready');
 }
 
 /* ---------- Chat with the coach (owner only, same server function) ---------- */
@@ -2448,7 +2452,7 @@ view.addEventListener('click',e=>{
   if(act==='bc-rm'){delete bc.pending[b.dataset.v];renderWeight();return}
   if(act==='bc-run'){bcRun();return}
   if(act==='bc-del'){const id=b.dataset.id;ask('Delete this body check?','The photos and advice will be removed.','Delete',()=>{const c=bcList().find(x=>x.id===id);db.settings.bodyChecks=bcList().filter(x=>x.id!==id);persist();if(c)(c.views||[]).forEach(v=>idbDel(id+':'+v));renderWeight()},true);return}
-  if(act==='aip-new'){if(aipBusy)return;ask('Make a new plan now?','Your AI coach will pick new exercises for every workout day. They stay the same for the next 2 weeks.','Make new plan',()=>makeAiPlan(true));return}
+  if(act==='aip-new'){if(aipBusy)return;ask('Make a new plan now?','Your AI coach will pick new exercises for every workout day, using your latest body check. They stay the same for the next 2 weeks.','Make new plan',()=>makeAiPlan(true));return}
   if(act==='open-chat'){openChat();return}
   if(act==='fb-ai'){getFeedback(b.dataset.id,true);return}
   if(act==='fb-stop'){const L=fbLive[b.dataset.id];if(L&&L.ctl)L.ctl.abort();return}
