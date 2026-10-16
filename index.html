@@ -1558,22 +1558,32 @@ function drawChat(){
   h+=chat.msgs.map(m=>`<div class="bub ${m.role==='user'?'me':'ai'}${m.err?' err':''}">${m.role==='user'?esc(m.content).replace(/\n/g,'<br>'):fmtFb(m.content)}</div>`).join('');
   if(chat.busy)h+=`<div class="bub ai"><span class="fbwait"><span class="fbspin" aria-hidden="true"></span>Thinking…</span></div>`;
   L.innerHTML=h;L.scrollTop=L.scrollHeight;
-  $('#chat-send').disabled=chat.busy;
+  $('#chat-send').disabled=chat.busy||!!chat.streaming;
 }
 function openChat(){chatLoad();$('#chat-close').innerHTML=ico('back',20);$('#chat').hidden=false;document.body.classList.add('noscroll');drawChat();}
 function closeChat(){$('#chat').hidden=true;document.body.classList.remove('noscroll')}
 async function sendChat(text){
-  text=String(text||'').trim();if(!text||chat.busy)return;
+  text=String(text||'').trim();if(!text||chat.busy||chat.streaming)return;
   chat.msgs=chat.msgs.filter(m=>!m.err);chat.msgs.push({role:'user',content:text.slice(0,2000)});chat.busy=true;chatSave();drawChat();
-  let reply='',err='';
+  let reply='',err='',live=null;
   try{
-    const {data,error}=await acct.sb.functions.invoke('coach',{body:{system:coachSystem(),messages:chat.msgs.slice(-16).map(m=>({role:m.role,content:m.content}))}});
-    if(error){let code='';try{code=(await error.context.json()).error}catch(e){}err=code==='no_credit'?'Coach credit has run out. Top up in the Claude Console.':code==='not_allowed'?'Chat is not turned on for this account.':'Couldn’t reach the coach. Check your internet and try again.'}
-    else reply=data&&data.text||'';
-    if(!reply&&!err)err='No answer came back. Try again.';
-  }catch(e){err='Couldn’t reach the coach. Check your internet and try again.'}
-  chat.busy=false;
-  if(reply)chat.msgs.push({role:'assistant',content:reply});else chat.msgs.push({role:'assistant',content:err,err:true});
+    const sess=(await acct.sb.auth.getSession()).data.session;if(!sess)throw new Error('signin');
+    const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),90000);
+    const res=await fetch(CFG.supabaseUrl.replace(/\/$/,'')+'/functions/v1/coach',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+sess.access_token,apikey:CFG.supabaseKey},body:JSON.stringify({stream:true,system:coachSystem(),messages:chat.msgs.slice(-12).map(m=>({role:m.role,content:m.content}))})});
+    if(!res.ok){let code='';try{code=(await res.json()).error}catch(e){}err=code==='no_credit'?'Coach credit has run out. Top up in the Claude Console.':code==='not_allowed'?'Chat is not turned on for this account.':'The coach is busy right now. Try again in a moment.'}
+    else{
+      const rd=res.body.getReader(),dec=new TextDecoder();
+      chat.busy=false;live={role:'assistant',content:''};chat.msgs.push(live);chat.streaming=true;drawChat();
+      let last=0;
+      while(true){const {value,done}=await rd.read();if(done)break;live.content+=dec.decode(value,{stream:true});const now=Date.now();if(now-last>120){last=now;drawChat()}}
+      chat.streaming=false;
+      reply=live.content.replace(/\n?\[coach error\]\s*$/,'').trim();
+      if(!reply){chat.msgs.pop();err='No answer came back. Try again.'}else live.content=reply;
+    }
+    clearTimeout(to);
+  }catch(e){if(live&&live.content.trim()){reply=live.content.trim()}else{if(live)chat.msgs.pop();err='Couldn’t reach the coach. Check your internet and try again.'}}
+  chat.busy=false;chat.streaming=false;
+  if(!reply)chat.msgs.push({role:'assistant',content:err,err:true});
   chatSave();drawChat();
 }
 $('#chat-close').addEventListener('click',closeChat);
