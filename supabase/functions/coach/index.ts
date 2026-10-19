@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
     // Pass only the reply text through, chunk by chunk, as plain text.
     const enc = new TextEncoder(), dec = new TextDecoder();
     let buf = "";
+    const usage = { input_tokens: 0, output_tokens: 0 };
     const out = new ReadableStream({
       async start(ctl) {
         const rd = r.body!.getReader();
@@ -96,11 +97,14 @@ Deno.serve(async (req) => {
               try {
                 const ev = JSON.parse(line.slice(5));
                 if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") ctl.enqueue(enc.encode(ev.delta.text));
+                if (ev.type === "message_start" && ev.message?.usage) { usage.input_tokens = (ev.message.usage.input_tokens ?? 0) + (ev.message.usage.cache_creation_input_tokens ?? 0) + (ev.message.usage.cache_read_input_tokens ?? 0); usage.output_tokens = ev.message.usage.output_tokens ?? 0; }
+                if (ev.type === "message_delta" && ev.usage) usage.output_tokens = ev.usage.output_tokens ?? usage.output_tokens;
                 if (ev.type === "error") ctl.enqueue(enc.encode("\n[coach error]"));
               } catch { /* skip */ }
             }
           }
         } catch { ctl.enqueue(enc.encode("\n[coach error]")); }
+        ctl.enqueue(enc.encode("\u001e" + JSON.stringify({ usage })));
         ctl.close();
       },
     });
@@ -110,5 +114,5 @@ Deno.serve(async (req) => {
   const d = await r.json().catch(() => ({}));
   const text = (d.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("\n").trim();
   if (!text) return json({ error: "empty", stop: d.stop_reason ?? "" }, 502);
-  return json({ text });
+  return json({ text, usage: { input_tokens: d.usage?.input_tokens ?? 0, output_tokens: d.usage?.output_tokens ?? 0 } });
 });

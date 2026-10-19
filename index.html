@@ -1451,7 +1451,7 @@ async function bcRun(){
     const images=views.map(k=>({media_type:'image/jpeg',data:bc.pending[k].split(',')[1]}));
     const {data,error}=await acct.sb.functions.invoke('coach',{body:{prompt:bcPrompt(views),images}});
     if(error){let code='';try{code=(await error.context.json()).error}catch(e){}err=code==='no_credit'?'Coach credit has run out. Top up in the Claude Console.':'Couldn’t reach the coach. Check your internet and try again.'}
-    else text=data&&data.text||'';
+    else{text=data&&data.text||'';addUsage(data&&data.usage)}
     if(!text&&!err)err='No answer came back. Try again.';
   }catch(e){err='Couldn’t reach the coach. Check your internet and try again.'}
   bc.busy=false;
@@ -1461,6 +1461,15 @@ async function bcRun(){
 }
 (function(){const f=document.createElement('input');f.type='file';f.accept='image/*';f.id='bc-file';f.hidden=true;document.body.appendChild(f);
   f.addEventListener('change',async()=>{const file=f.files&&f.files[0];f.value='';if(!file||!bc.slot)return;try{bc.pending[bc.slot]=await shrinkPhoto(file)}catch(e){toast('Couldn’t open that photo')}bc.slot=null;if(tab==='weight')renderWeight()})})();
+
+
+/* ---------- Coach credit meter: estimated from token usage (Sonnet 5.5: $2 in / $10 out per million). ---------- */
+const CR_IN=2/1e6,CR_OUT=10/1e6,CR_LOW=1;
+function credit(){const c=db.settings.coachCredit||{};return {start:typeof c.start==='number'?c.start:4.7,used:+c.used||0,est:typeof c.start!=='number',setOn:c.setOn||''}}
+const creditLeft=()=>{const c=credit();return Math.max(0,c.start-c.used)};
+function addUsage(u){if(!u)return;const cost=(+u.input_tokens||0)*CR_IN+(+u.output_tokens||0)*CR_OUT;if(!cost)return;const c=credit(),before=c.start-c.used;db.settings.coachCredit=Object.assign({},db.settings.coachCredit||{},{used:Math.round((c.used+cost)*1e6)/1e6});persist();const after=creditLeft();if(before>CR_LOW&&after<=CR_LOW)setTimeout(()=>openModal({title:'Coach credit is low',text:`About $${after.toFixed(2)} of your Claude credit is left. Top up in the Claude Console when you're ready (Billing, then Buy credits). Auto-reload stays off, so you're never charged automatically.`}),600)}
+function creditHTML(){if(!coachMine())return '';const left=creditLeft(),c=credit();return `<section class="panel"><div class="row-sb"><h2>Coach credit</h2><b class="num" style="font-size:20px;${left<=CR_LOW?'color:var(--danger)':''}">~$${left.toFixed(2)}</b></div><div class="bar" style="margin:10px 0 8px"><div style="width:${Math.min(100,left/5*100)}%;${left<=CR_LOW?'background:var(--danger)':''}"></div></div><p class="hint" style="margin:0 0 10px">Estimated from what the coach has used${c.est?' (starting from about $4.70)':c.setOn?` since you set it on ${esc(niceDate(c.setOn))}`:''}. You get a warning at $1 left. The exact balance is in the Claude Console.</p><div class="btnrow"><button class="ghost sm" data-act="credit-set">Update balance</button></div></section>`}
+function creditBanner(){if(!coachMine())return '';const l=creditLeft();return l<=CR_LOW?`<section class="panel savedbar"><b>Coach credit is low: about $${l.toFixed(2)} left.</b> Top up in the Claude Console (Billing, then Buy credits), then tap <button class="linkbtn" data-act="credit-set">Update balance</button>.</section>`:''}
 
 /* ---------- AI 2-week plan generator (owner only, same coach function) ---------- */
 let aipBusy=false;
@@ -1520,7 +1529,7 @@ async function makeAiPlan(force){
   if(!force){if(aiPlanFor(today())||acct.state==='syncing')return;try{if(localStorage.getItem('aip-try')===today())return;localStorage.setItem('aip-try',today())}catch(e){}}
   aipBusy=true;if(force){toast('Your coach is building a new plan…');if(tab==='profile')renderProfile()}
   let plans=null;
-  try{const {data,error}=await acct.sb.functions.invoke('coach',{body:{prompt:aiPlanPrompt()}});if(!error&&data&&data.text)plans=aiPlanParse(data.text)}catch(e){}
+  try{const {data,error}=await acct.sb.functions.invoke('coach',{body:{prompt:aiPlanPrompt()}});if(!error&&data&&data.text){addUsage(data.usage);plans=aiPlanParse(data.text)}}catch(e){}
   aipBusy=false;
   if(!plans){if(force)toast('Couldn’t make a new plan right now. Try again later.');if(tab==='profile')renderProfile();return}
   db.settings.aiPlan={start:weekKey(today()),made:today(),split:activePlan(),plans};
@@ -1608,7 +1617,8 @@ async function sendChat(text){
       const rd=res.body.getReader(),dec=new TextDecoder();
       chat.busy=false;live={role:'assistant',content:''};chat.msgs.push(live);chat.streaming=true;drawChat();
       let last=0;
-      while(true){const {value,done}=await rd.read();if(done)break;live.content+=dec.decode(value,{stream:true});const now=Date.now();if(now-last>120){last=now;drawChat()}}
+      let rawS='';while(true){const {value,done}=await rd.read();if(done)break;rawS+=dec.decode(value,{stream:true});live.content=rawS.split('\u001e')[0];const now=Date.now();if(now-last>120){last=now;drawChat()}}
+      {const k=rawS.indexOf('\u001e');if(k>=0){try{addUsage(JSON.parse(rawS.slice(k+1)).usage)}catch(e){}}}
       chat.streaming=false;
       reply=live.content.replace(/\n?\[coach error\]\s*$/,'').trim();
       if(!reply){chat.msgs.pop();err='No answer came back. Try again.'}else live.content=reply;
@@ -1652,7 +1662,7 @@ async function getFeedback(id,manual){
     const {data,error}=await acct.sb.functions.invoke('coach',{body:{prompt:fbPrompt(w)}});
     if(error){let code='',st=0;try{st=error.context.status;code=(await error.context.json()).error}catch(e){}
       msg=code==='empty'?'The coach didn\u2019t finish an answer. Try again.':code==='no_credit'?'Coach credit has run out. Top up in the Claude Console, then tap again.':code==='no_key'||st===404?'Coach isn\u2019t set up yet.':code==='not_allowed'?'Coach feedback is not turned on for this account.':'Couldn\u2019t reach the coach. Check your internet and try again.'}
-    else if(data&&data.text){const ww=db.workouts.find(x=>x.id===id);if(ww){ww.feedback={text:data.text,date:today(),ai:true};persist()}}
+    else if(data&&data.text){addUsage(data.usage);const ww=db.workouts.find(x=>x.id===id);if(ww){ww.feedback={text:data.text,date:today(),ai:true};persist()}}
     else msg='No feedback came back. Try again.';
   }catch(e){msg='Couldn\u2019t reach the coach. Check your internet and try again.'}
   fbLive[id]={busy:false,msg};paintFb(id);
@@ -2363,6 +2373,7 @@ function homeHTML(){
   const pr=allPRs().events.slice(-1)[0];
   const prCard=pr?`<button class="card-row prcard" data-act="open-records"><span class="ic-tile">${ico('trophy',22)}</span><span class="f1"><span class="xs acc">${pr.date===today()?'New personal record':'Latest record · '+esc(shortDate(pr.date))}</span><b>${esc(pr.name)}</b></span><span class="num big2">${fmtNum(pr.w)} kg × ${pr.r}</span></button>`:'';
   return `<div class="home-head"><div><div class="xs">${esc(new Date().toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}))}</div><h1 class="home-h">${greet()},<br>${esc(st.name||'there')}</h1><div class="home-sync">${ico('cloud',15)} ${esc(syncLabel())}</div></div><button class="avatar" data-act="go-profile" aria-label="Profile">${esc((st.name||'?').trim().charAt(0).toUpperCase())}</button></div>
+  ${creditBanner()}
   ${hero}
   ${crCardHTML()}
   <div class="duo"><section class="panel tight"><div class="xs">This week</div><div class="num big3">${doneWeek}<span class="mut"> / ${total}</span></div><div class="bar"><div style="width:${Math.min(100,doneWeek/Math.max(1,total)*100)}%"></div></div></section>
@@ -2435,6 +2446,7 @@ function settingsHTML(){
   const d=daysSinceBackup(),row=(i,t,r,act)=>`<button class="srow"${act?` data-act="${act}"`:''}><span class="mut">${ico(i,20)}</span><span class="f1">${t}</span>${r}</button>`;
   return `<div class="wo-head"><button class="iconbtn" data-act="prof-back" aria-label="Back">${ico('back',20)}</button><h1 class="wo-t f1">Settings</h1></div>
   <section class="panel list3">${row('ruler','Units','<span class="mut sm2">kg · km</span>')}${row('globe','Language','<span class="mut sm2">English</span>')}${acct.user?row('sync','Sync','<span class="mut sm2">'+esc(syncLabel())+'</span>'+ico('chev',17),'open-sync'):''}</section>
+  ${creditHTML()}
   <section class="panel"><h2>Backup</h2><p class="hint" style="margin:0 0 10px">${acct.user?'Your log is saved to your account automatically. You can also keep your own copy.':'Your log is saved only on this phone. Back up every week or two.'} ${d===null?'No backup file yet.':`Last backup: ${d===0?'today':d+' day'+(d===1?'':'s')+' ago'}.`}</p>
   <div class="btnrow"><button class="primary sm" data-act="backup-file">${ico('save',16)} Save backup file</button><button class="ghost sm" data-act="restore-file">Restore from file</button></div></section>
   <section class="panel list3">${row('help','Help & Support',ico('chev',17),'info-help')}${row('lock','Privacy',ico('chev',17),'info-privacy')}${row('doc','Terms & Conditions',ico('chev',17),'info-terms')}</section>
@@ -2520,6 +2532,7 @@ view.addEventListener('click',e=>{
   if(act==='bc-diet'){db.settings.dietWant=!db.settings.dietWant;persist();renderWeight();return}
   if(act==='bc-dtype'){db.settings.dietType=b.dataset.v;persist();renderWeight();return}
   if(act==='bc-del'){const id=b.dataset.id;ask('Delete this body check?','The photos and advice will be removed.','Delete',()=>{const c=bcList().find(x=>x.id===id);db.settings.bodyChecks=bcList().filter(x=>x.id!==id);persist();if(c)(c.views||[]).forEach(v=>idbDel(id+':'+v));renderWeight()},true);return}
+  if(act==='credit-set'){openModal({title:'Update coach credit',text:'Type the Credit balance shown in the Claude Console (Settings, then Billing), in dollars.',input:{placeholder:'e.g. 4.62'},ok:{label:'Save',fn:v=>{const n=parseFloat(String(v).replace(/[^0-9.]/g,''));if(!(n>=0&&n<1000)){toast('Enter the balance, e.g. 4.62');return}db.settings.coachCredit={start:n,used:0,setOn:today()};persist();closeModal();render();toast('Coach credit updated')}}});return}
   if(act==='aip-new'){if(aipBusy)return;ask('Make a new plan now?','Your AI coach will pick new exercises for every workout day, using your latest body check. They stay the same for the next 2 weeks.','Make new plan',()=>makeAiPlan(true));return}
   if(act==='open-chat'){openChat();return}
   if(act==='fb-ai'){getFeedback(b.dataset.id,true);return}
