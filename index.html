@@ -390,6 +390,13 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .eqrow[aria-pressed="true"] .eqdot{border-color:#3DDC84;background:#3DDC84;box-shadow:0 0 6px 1px rgba(61,220,132,.75),0 0 14px 2px rgba(61,220,132,.35)}
 .eqrow[aria-pressed="false"] .f1{color:var(--muted)}
 .fbwait{display:flex;align-items:center;gap:10px}.fbspin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(251,81,2,.3);border-top-color:var(--accent);animation:fbsp 0.8s linear infinite;flex:none}@keyframes fbsp{to{transform:rotate(360deg)}}
+.bub{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.bub.seltext{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.bub.sel{outline:2px solid rgba(251,81,2,.55);outline-offset:2px}
+.bubmenu{position:fixed;z-index:60;min-width:190px;background:#2E3142;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:6px;display:flex;flex-direction:column}
+.bubmenu button{display:flex;align-items:center;gap:12px;background:none;border:0;color:var(--ink);font:600 16px "Manrope",system-ui,sans-serif;padding:12px 14px;border-radius:12px;min-height:0;width:100%;text-align:left}
+.bubmenu button+button{border-top:1px solid rgba(255,255,255,.06)}
+.bubmenu button:active{background:rgba(255,255,255,.06)}
+.chist{margin:0 0 8px}.chq{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat{position:fixed;inset:0;z-index:46;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
 .chat[hidden]{display:none}
 .chat-top{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);max-width:640px;width:100%;margin:0 auto}
@@ -402,7 +409,7 @@ details.wk[open] .chev{transform:rotate(90deg)}.chev{transition:transform .15s;d
 .bub.err{color:var(--muted)}
 .chat-empty{margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 0}
 .chat-empty p{margin:0}.chat-sugg{display:flex;flex-direction:column;gap:8px;margin-top:10px;align-items:center}.chat-sugg .chip2{white-space:normal;height:auto;min-height:38px;padding:8px 14px}
-.chat-in{display:flex;gap:8px;align-items:flex-end;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);max-width:640px;width:100%;margin:0 auto}
+.chat-in[hidden]{display:none!important}.chat-in{display:flex;gap:8px;align-items:flex-end;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);max-width:640px;width:100%;margin:0 auto}
 .chat-in textarea{flex:1;width:auto;min-width:0;resize:none;min-height:46px;max-height:120px;border-radius:16px;font-size:16px;padding:12px 14px;margin:0}
 .chat-in button{height:46px;min-height:46px;padding:0 18px;border-radius:16px;flex:none;width:auto}
 body.noscroll{overflow:hidden}
@@ -514,7 +521,7 @@ button.cday:focus{outline:none}
 
 <div id="restbar" class="restbar" hidden role="timer" aria-live="off"><div class="rest-fill" id="rest-fill"></div><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg><div class="rest-txt"><div id="rest-l">Rest</div><div id="rest-t">1:30</div></div><button data-act="rest-add" class="rest-b ghosty">+15 s</button><button data-act="rest-skip" class="rest-b">Skip</button></div>
 <div id="complete" class="complete" hidden role="dialog" aria-modal="true" aria-label="Workout complete"></div>
-<div id="chat" class="chat" hidden role="dialog" aria-modal="true" aria-label="Chat with your coach"><div class="chat-top"><button class="iconbtn" id="chat-close" aria-label="Close chat"></button><div class="f1"><b class="chat-t">Coach</b><div class="mut sm2">Knows your plan and recent workouts</div></div><button class="linkbtn" id="chat-clear">Clear</button></div><div class="chat-list" id="chat-list" aria-live="polite"></div><form class="chat-in" id="chat-form"><textarea id="chat-text" rows="1" placeholder="Ask about your training…" aria-label="Message"></textarea><button class="primary" id="chat-send" type="submit" aria-label="Send">Send</button></form></div>
+<div id="chat" class="chat" hidden role="dialog" aria-modal="true" aria-label="Chat with your coach"><div class="chat-top"><button class="iconbtn" id="chat-close" aria-label="Close chat"></button><div class="f1"><b class="chat-t">Coach</b><div class="mut sm2" id="chat-sub">Knows your plan and recent workouts</div></div><button class="linkbtn" id="chat-hist">History</button></div><div class="chat-list" id="chat-list" aria-live="polite"></div><form class="chat-in" id="chat-form"><textarea id="chat-text" rows="1" placeholder="Ask about your training…" aria-label="Message"></textarea><button class="primary" id="chat-send" type="submit" aria-label="Send">Send</button></form></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <div id="wiz" class="modal" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="w-title"><div id="wiz-body"></div></div></div>
@@ -1523,10 +1530,15 @@ async function makeAiPlan(force){
 }
 
 /* ---------- Chat with the coach (owner only, same server function) ---------- */
-const CHAT_KEY='logbook-chat';
-let chat={msgs:[],busy:false};
-function chatLoad(){try{const v=JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');chat.msgs=Array.isArray(v)?v.slice(-40):[]}catch(e){chat.msgs=[]}}
-function chatSave(){try{localStorage.setItem(CHAT_KEY,JSON.stringify(chat.msgs.slice(-40)))}catch(e){}}
+/* One chat per day; earlier days are kept as history (on this phone, last 60 days). */
+const CHAT_KEY='logbook-chat',CHATS_KEY='logbook-chats';
+let chat={msgs:[],busy:false,days:{},view:null,mode:'chat',menu:null};
+function chatLoad(){
+  try{chat.days=JSON.parse(localStorage.getItem(CHATS_KEY)||'{}')||{}}catch(e){chat.days={}}
+  try{const old=JSON.parse(localStorage.getItem(CHAT_KEY)||'null');if(Array.isArray(old)&&old.length){const k=today();chat.days[k]=[...(chat.days[k]||[]),...old];localStorage.removeItem(CHAT_KEY)}}catch(e){}
+  chat.msgs=(chat.days[today()]||[]).filter(m=>!m.err);chat.view=null;chat.mode='chat';
+}
+function chatSave(){chat.days[today()]=chat.msgs.filter(m=>!m.err).slice(-60);if(!chat.days[today()].length)delete chat.days[today()];const keys=Object.keys(chat.days).sort().slice(-60),o={};keys.forEach(k=>o[k]=chat.days[k]);chat.days=o;try{localStorage.setItem(CHATS_KEY,JSON.stringify(o))}catch(e){}}
 function coachSystem(){
   const st=db.settings,kg=latestKg(),ti=(new Date().getDay()+6)%7,t=today();
   const main=db.workouts.find(w=>isMain(w)&&w.date===t),sk=db.workouts.find(w=>w.skipped&&!w.extra&&w.date===t);
@@ -1553,17 +1565,38 @@ RECENT WORKOUTS (newest first; weight×reps, dumbbells per hand, BW = bodyweight
 ${recent.join('\n')||'none yet'}`;
 }
 function drawChat(){
-  const L=$('#chat-list');
-  let h=chat.msgs.length?'':`<div class="chat-empty"><div class="emptyicon" style="width:72px;height:72px;font-size:34px">💬</div><b>Ask your coach anything</b><p class="mut sm2">It knows your plan, goal and recent workouts.</p><div class="chat-sugg">${['What should I focus on this week?','Am I ready to increase my bench press?','What should I eat after a workout?'].map(q=>`<button class="chip2" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
-  h+=chat.msgs.map(m=>`<div class="bub ${m.role==='user'?'me':'ai'}${m.err?' err':''}">${m.role==='user'?esc(m.content).replace(/\n/g,'<br>'):fmtFb(m.content)}</div>`).join('');
+  const L=$('#chat-list'),past=chat.view&&chat.view!==today(),hist=chat.mode==='history';
+  $('#chat-form').hidden=hist||past;$('#chat-hist').textContent=hist||past?'Today':'History';
+  $('.chat-t').textContent=hist?'Chat history':'Coach';
+  $('#chat-sub').textContent=hist?'Earlier conversations on this phone':past?new Date(chat.view+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'}):'Knows your plan and recent workouts';
+  closeBubMenu();
+  if(hist){const ks=Object.keys(chat.days).filter(k=>k!==today()&&chat.days[k].length).sort().reverse();
+    L.innerHTML=ks.length?ks.map(k=>{const m=chat.days[k],q=(m.find(x=>x.role==='user')||{}).content||'';const lab=k.length===10?new Date(k+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}):'Earlier';return `<button class="card-row chist" data-day="${esc(k)}"><span class="f1"><b>${esc(lab)}</b><span class="mut sm2 chq">${esc(q.slice(0,90))}</span></span><span class="mut sm2">${m.filter(x=>x.role==='user').length} ${m.filter(x=>x.role==='user').length===1?'question':'questions'}</span></button>`}).join(''):`<div class="chat-empty"><b>No earlier chats yet</b><p class="mut sm2">Each day starts a fresh chat. Earlier days show up here.</p></div>`;
+    L.scrollTop=0;return}
+  const msgs=past?(chat.days[chat.view]||[]):chat.msgs;
+  let h=msgs.length?'':`<div class="chat-empty"><div class="emptyicon" style="width:72px;height:72px;font-size:34px">💬</div><b>Ask your coach anything</b><p class="mut sm2">It knows your plan, goal and recent workouts. A fresh chat starts each day.</p><div class="chat-sugg">${['What should I focus on this week?','Am I ready to increase my bench press?','What should I eat after a workout?'].map(q=>`<button class="chip2" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`;
+  h+=msgs.map((m,i)=>`<div class="bub ${m.role==='user'?'me':'ai'}${m.err?' err':''}" data-i="${i}">${m.role==='user'?esc(m.content).replace(/\n/g,'<br>'):fmtFb(m.content)}</div>`).join('');
   if(chat.busy)h+=`<div class="bub ai"><span class="fbwait"><span class="fbspin" aria-hidden="true"></span>Thinking…</span></div>`;
   L.innerHTML=h;L.scrollTop=L.scrollHeight;
   $('#chat-send').disabled=chat.busy||!!chat.streaming;
 }
-function openChat(){chatLoad();$('#chat-close').innerHTML=ico('back',20);$('#chat').hidden=false;document.body.classList.add('noscroll');drawChat();}
+function closeBubMenu(){const m=document.getElementById('bubmenu');if(m)m.remove();document.querySelectorAll('.bub.sel').forEach(x=>x.classList.remove('sel'));chat.menu=null}
+function openBubMenu(el){
+  closeBubMenu();const past=chat.view&&chat.view!==today(),msgs=past?(chat.days[chat.view]||[]):chat.msgs,i=+el.dataset.i,m=msgs[i];if(!m||m.err)return;
+  chat.menu={i,past};el.classList.add('sel');
+  const canEdit=m.role==='user'&&!past&&!chat.busy&&!chat.streaming;
+  const box=document.createElement('div');box.id='bubmenu';box.className='bubmenu';box.setAttribute('role','menu');
+  box.innerHTML=`<button data-m="copy" role="menuitem">${ico('doc',18)}Copy</button><button data-m="select" role="menuitem">${ico('ruler',18)}Select text</button>${canEdit?`<button data-m="edit" role="menuitem">${ico('edit',18)}Edit</button>`:''}`;
+  $('#chat').appendChild(box);
+  const r=el.getBoundingClientRect(),bh=box.offsetHeight,bw=box.offsetWidth;
+  let top=r.bottom+6;if(top+bh>innerHeight-90)top=Math.max(70,r.top-bh-6);
+  box.style.top=top+'px';box.style.left=Math.min(innerWidth-bw-12,Math.max(12,m.role==='user'?r.right-bw:r.left))+'px';
+}
+function openChat(){chatLoad();chat.day=today();$('#chat-close').innerHTML=ico('back',20);$('#chat').hidden=false;document.body.classList.add('noscroll');drawChat();}
 function closeChat(){$('#chat').hidden=true;document.body.classList.remove('noscroll')}
 async function sendChat(text){
   text=String(text||'').trim();if(!text||chat.busy||chat.streaming)return;
+  if(chat.day!==today()){chatLoad();chat.day=today()}
   chat.msgs=chat.msgs.filter(m=>!m.err);chat.msgs.push({role:'user',content:text.slice(0,2000)});chat.busy=true;chatSave();drawChat();
   let reply='',err='',live=null;
   try{
@@ -1583,14 +1616,28 @@ async function sendChat(text){
     clearTimeout(to);
   }catch(e){if(live&&live.content.trim()){reply=live.content.trim()}else{if(live)chat.msgs.pop();err='Couldn’t reach the coach. Check your internet and try again.'}}
   chat.busy=false;chat.streaming=false;
-  if(!reply)chat.msgs.push({role:'assistant',content:err,err:true});
+  if(!reply){const lu=chat.msgs[chat.msgs.length-1];if(lu&&lu.role==='user'&&lu.content===text.slice(0,2000)){chat.msgs.pop();const t=$('#chat-text');if(!t.value.trim()){t.value=text;t.dispatchEvent(new Event('input'))}}chat.msgs.push({role:'assistant',content:err+' Your message is back in the box — tap Send to retry.',err:true})}
   chatSave();drawChat();
 }
 $('#chat-close').addEventListener('click',closeChat);
-$('#chat-clear').addEventListener('click',()=>{if(chat.busy)return;chat.msgs=[];chatSave();drawChat()});
+$('#chat-hist').addEventListener('click',()=>{if(chat.mode==='history'||(chat.view&&chat.view!==today())){chat.mode='chat';chat.view=null}else{chat.mode='history'}drawChat()});
 $('#chat-form').addEventListener('submit',e=>{e.preventDefault();const t=$('#chat-text');const v=t.value;t.value='';t.style.height='';sendChat(v)});
 $('#chat-text').addEventListener('input',e=>{const t=e.target;t.style.height='auto';t.style.height=Math.min(120,t.scrollHeight)+'px'});
-$('#chat-list').addEventListener('click',e=>{const b=e.target.closest('[data-q]');if(b)sendChat(b.dataset.q)});
+$('#chat-list').addEventListener('click',e=>{
+  const q=e.target.closest('[data-q]');if(q){sendChat(q.dataset.q);return}
+  const d=e.target.closest('[data-day]');if(d){chat.mode='chat';chat.view=d.dataset.day;drawChat();$('#chat-list').scrollTop=0;return}
+  if(window.getSelection&&String(window.getSelection()).length)return;
+  const bub=e.target.closest('.bub[data-i]');if(bub){if(chat.menu&&+bub.dataset.i===chat.menu.i){closeBubMenu();return}openBubMenu(bub);return}
+  closeBubMenu();
+});
+$('#chat').addEventListener('click',e=>{
+  const b=e.target.closest('#bubmenu [data-m]');if(!b){if(!e.target.closest('#bubmenu')&&!e.target.closest('.bub'))closeBubMenu();return}
+  const M=chat.menu;if(!M)return;const msgs=M.past?(chat.days[chat.view]||[]):chat.msgs,m=msgs[M.i];if(!m)return;
+  if(b.dataset.m==='copy'){copyText(m.content,'Message');closeBubMenu()}
+  else if(b.dataset.m==='select'){const el=document.querySelector(`.bub[data-i="${M.i}"]`);closeBubMenu();if(el){el.classList.add('seltext');const r=document.createRange();r.selectNodeContents(el);const sl=window.getSelection();sl.removeAllRanges();sl.addRange(r)}}
+  else if(b.dataset.m==='edit'){closeBubMenu();chat.msgs=chat.msgs.slice(0,M.i);chatSave();drawChat();const t=$('#chat-text');t.value=m.content;t.dispatchEvent(new Event('input'));t.focus();toast('Edit your message, then tap Send')}
+});
+$('#chat-list').addEventListener('scroll',()=>{if(chat.menu)closeBubMenu()},{passive:true});
 
 /* AI coach: only for the account whose email hash is in config.js; the server checks again. */
 let coachHash=null;
