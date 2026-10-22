@@ -1336,7 +1336,7 @@ function dayHTML(date){
   return ws.map(w=>{if(w.skipped)return `<section class="panel">${head}<h2 style="margin:2px 0 0">${esc(w.type)}</h2><span class="mut sm2">Skipped</span></div></div>${date===today()?`<div class="btnrow" style="margin-top:12px"><button class="ghost sm" data-act="unskip">Undo skip</button></div>`:''}</section>`;
     const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);
     return `<section class="panel dayw${w.extra?' x-'+w.extra:''}">${head}<h2 style="margin:2px 0 0">${w.extra?CR_INFO[w.extra].e+' '+esc(w.type)+' completed':esc(w.type)}</h2><span class="mut sm2">${w.extra==='yoga'?plur(w.exercises.length,'pose'):w.exercises.length?`${plur(w.exercises.length,'exercise')} · ${plur(sets,'set')}`:'Cardio only'}${w.mins?' · '+w.mins+' min':''}</span></div>${prW.has(w.id)?'<span class="badge">PR</span>':''}</div>
-    <div class="wk-body">${w.exercises.map(e=>`<div class="line2"><b>${esc(e.name)}</b><span class="num">${esc(e.sets.map(fmtSet).join(' · '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${w.extra?'':fbHTML(w)}<div class="btnrow two"><button class="primary" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost" data-act="edit" data-id="${w.id}">${ico('edit',16)} Edit</button></div></section>`}).join('');
+    <div class="wk-body">${w.exercises.map(e=>`<div class="line2"><b>${esc(e.name)}</b><span class="num">${esc(e.sets.map(fmtSet).join(' · '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow two"><button class="primary" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost" data-act="edit" data-id="${w.id}">${ico('edit',16)} Edit</button></div></section>`}).join('');
 }
 function renderHistory(){
   const all=sorted();
@@ -1364,7 +1364,7 @@ function paintFb(id){const el=document.getElementById('fb-'+id),w=db.workouts.fi
 function fbPrompt(w){
   const st=db.settings,ws=[...db.weights].sort((a,b)=>a.date<b.date?-1:1).slice(-6);
   const lines=w.exercises.map(e=>{const t=targetFor(e.name),prev=lastFor(e.name,w.id,w.date);return `- ${e.name}${t?` (target ${t.sets} × ${t.reps}${t.timed&&!/sec/.test(t.reps)?' sec':''})`:''}: ${e.sets.map(fmtSet).join(', ')}${prev?` | previous time ${prev.date}: ${prev.sets.map(fmtSet).join(', ')}`:' | first time logged'}`});
-  return `You are my gym coach. I just saved this workout. Analyse it and give my next-session targets.
+  return `You are my gym coach. I just saved this workout. Analyse it and give my next-session targets.${w.extra==='abs'?' This was my optional abs session, done separately from my main workout.':w.extra==='yoga'?' This was my optional yoga session (each pose held in seconds). Comment on consistency and which poses to hold longer; skip weight advice.':''}
 
 ABOUT ME
 - Name: ${st.name||'not given'}. Height: ${st.height?st.height+' cm':'not given'}. Weigh-ins (kg): ${ws.length?ws.map(x=>`${x.date} ${x.kg}`).join(', '):'none yet'}. Target weight: ${st.target?st.target+' kg':'not set'}.
@@ -1654,7 +1654,7 @@ let coachHash=null;
 async function coachInit(){setTimeout(()=>makeAiPlan(false),9000);coachHash=null;try{const e=String(acct.user&&acct.user.email||'').trim().toLowerCase(),want=String(CFG.coachFor||'');if(!e||!want||!crypto.subtle)return;const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(e));coachHash=[...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('');if(tab==='history')renderHistory()}catch(err){}}
 const coachMine=()=>!!(acct.sb&&acct.user&&coachHash&&coachHash===String(CFG.coachFor||''));
 async function getFeedback(id,manual){
-  const w=db.workouts.find(x=>x.id===id);if(!w||w.extra||w.skipped||!coachMine()||(fbLive[id]&&fbLive[id].busy))return;
+  const w=db.workouts.find(x=>x.id===id);if(!w||w.skipped||!coachMine()||(fbLive[id]&&fbLive[id].busy))return;
   if(w.feedback&&w.feedback.text&&!manual)return;
   if(!(w.exercises.length||w.cardio))return;
   fbLive[id]={busy:true};paintFb(id);let msg='';
