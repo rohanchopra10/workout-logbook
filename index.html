@@ -2468,7 +2468,7 @@ function settingsHTML(){
   <div class="btnrow"><button class="primary sm" data-act="backup-file">${ico('save',16)} Save backup file</button><button class="ghost sm" data-act="restore-file">Restore from file</button></div></section>
   <section class="panel list3">${row('help','Help & Support',ico('chev',17),'info-help')}${row('lock','Privacy',ico('chev',17),'info-privacy')}${row('doc','Terms & Conditions',ico('chev',17),'info-terms')}</section>
   ${acct.user?`<section class="panel list3">${row('out','<span class="danger">Sign out</span>','','acct-signout')}</section>`:''}
-  <p class="mut sm2" style="text-align:center">Workout Logbook · version 2.0</p>`;
+  <p class="mut sm2" style="text-align:center">Workout Logbook · version 2.0 · ${APP_VER}</p>`;
 }
 function syncHTML(){
   const ok=acct.state==='ok',t=acct.lastSync?new Date(acct.lastSync).toLocaleString(undefined,{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}):'Not yet';
@@ -2632,6 +2632,7 @@ const cleanData=d=>({workouts:d.workouts,weights:d.weights,settings:d.settings,d
 
 /* ---------- account (Supabase) ---------- */
 const CFG=window.LOGBOOK_CONFIG||{};
+const APP_VER='20261027050436';
 const acct={sb:null,user:null,state:'off',timer:null,busy:false,again:false,lastSync:0};
 const OWNER_KEY='gymlog-owner';
 function acctReady(){return !!acct.sb}
@@ -2839,6 +2840,9 @@ function initApp(){
     acct.sb.auth.getSession().then(({data})=>{if(!(data&&data.session))noSession()}).catch(noSession);
   }else{if(FIRST_RUN){finishLoad(false);showWelcome()}else finishLoad(true);splashDone()}
   if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  /* Auto-update: when the app opens or comes back to the screen, check for a newer version and reload (your log is saved first). */
+  async function checkUpdate(){try{const r=await fetch('index.html?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const m=(await r.text()).match(/const APP_VER='([^']+)'/),j={v:m&&m[1]};if(j.v&&j.v!==APP_VER){try{if(sessionStorage.getItem('upd-tried')===j.v)return;sessionStorage.setItem('upd-tried',j.v)}catch(e){}try{saveDraft();persist()}catch(e){}const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration();if(reg)await reg.update().catch(()=>{});location.reload()}}catch(e){}}
+  setTimeout(checkUpdate,2500);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
 }
 
 /* ---------- opening animation ---------- */
