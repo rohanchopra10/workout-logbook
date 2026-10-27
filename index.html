@@ -424,6 +424,11 @@ body.noscroll{overflow:hidden}
 .bc-slot.has span{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;border-radius:8px;padding:2px 7px;font-size:11px}
 .bc-x{position:absolute;top:6px;right:6px;width:28px;height:28px;min-height:0;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;padding:0;font-size:13px}
 .bc-thumbs{display:flex;gap:8px;margin-top:10px}.bc-thumbs img{width:72px;height:96px;object-fit:cover;border-radius:12px;background:var(--field)}
+.wstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr));gap:6px;margin:12px 0 4px}
+.wst{background:var(--field);border-radius:14px;padding:9px 6px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.wst b{font-size:17px;line-height:1.1}.wst span{font-size:10.5px;color:var(--muted);font-weight:600}
+.wst:nth-child(2) b{color:var(--accent)}
+.wsnote{margin:4px 2px 6px;font-size:11px;color:var(--muted)}
 .cdr{display:flex;align-items:center;gap:3px;height:9px}
 .cx{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none}.cx.abs{background:#4AA8FF;box-shadow:0 0 5px 1px rgba(74,168,255,.6)}.cx.yoga{background:#B58CFF;box-shadow:0 0 5px 1px rgba(181,140,255,.6)}
 .crops{display:flex;flex-direction:column;gap:8px}
@@ -1328,6 +1333,8 @@ function calHTML(sel){
   <div class="cwk">${['M','T','W','T','F','S','S'].map(x=>`<span>${x}</span>`).join('')}</div><div class="cgrid2">${cells}</div>
   <div class="calleg"><span><i class="cd ok"></i>Done</span><span><i class="cd bad"></i>Skipped</span><span><i class="cd rest"></i>Rest</span></div></section>`;
 }
+function statsRow(w){const t=workoutStats(w);if(!t.sets&&!t.cmin)return '';const box=(v,k)=>`<div class="wst"><b class="num">${v}</b><span>${k}</span></div>`;
+  return `<div class="wstats">${box(t.mins?t.mins:'–','min')}${box('~'+t.kcal,'kcal')}${t.vol?box(t.vol>=1000?(t.vol/1000).toFixed(1)+'k':t.vol,'kg lifted'):''}${t.sets?box(t.sets,t.sets===1?'set':'sets'):''}${t.cmin?box(t.cmin,'cardio min'):''}</div><p class="wsnote">Calories are an estimate for ${fmtNum(t.kg)} kg body weight${t.cmin?', lifting + cardio':''}.</p>`}
 function dayHTML(date){
   const ws=db.workouts.filter(w=>w.date===date).sort((a,b)=>(a.created||0)-(b.created||0)),dt=new Date(date+'T00:00:00'),prW=new Set(allPRs().events.map(p=>p.wid));
   const head=`<div class="dayhead"><span class="dblk"><span class="xs">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="num">${dt.getDate()}</span></span><div class="f1"><div class="xs">${esc(dt.toLocaleDateString(undefined,{month:'long',year:'numeric'}))}</div>`;
@@ -1336,7 +1343,7 @@ function dayHTML(date){
   return ws.map(w=>{if(w.skipped)return `<section class="panel">${head}<h2 style="margin:2px 0 0">${esc(w.type)}</h2><span class="mut sm2">Skipped</span></div></div>${date===today()?`<div class="btnrow" style="margin-top:12px"><button class="ghost sm" data-act="unskip">Undo skip</button></div>`:''}</section>`;
     const sets=w.exercises.reduce((a,e)=>a+e.sets.length,0);
     return `<section class="panel dayw${w.extra?' x-'+w.extra:''}">${head}<h2 style="margin:2px 0 0">${w.extra?CR_INFO[w.extra].e+' '+esc(w.type)+' completed':esc(w.type)}</h2><span class="mut sm2">${w.extra==='yoga'?plur(w.exercises.length,'pose'):w.exercises.length?`${plur(w.exercises.length,'exercise')} · ${plur(sets,'set')}`:'Cardio only'}${w.mins?' · '+w.mins+' min':''}</span></div>${prW.has(w.id)?'<span class="badge">PR</span>':''}</div>
-    <div class="wk-body">${w.exercises.map(e=>`<div class="line2"><b>${esc(e.name)}</b><span class="num">${esc(e.sets.map(fmtSet).join(' · '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow two"><button class="primary" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost" data-act="edit" data-id="${w.id}">${ico('edit',16)} Edit</button></div></section>`}).join('');
+    ${statsRow(w)}<div class="wk-body">${w.exercises.map(e=>`<div class="line2"><b>${esc(e.name)}</b><span class="num">${esc(e.sets.map(fmtSet).join(' · '))}</span></div>`).join('')}</div>${w.cardio?`<p class="extra"><b>Cardio:</b> ${esc(w.cardio)}</p>`:''}${w.notes?`<p class="extra"><b>Notes:</b> ${esc(w.notes)}</p>`:''}${fbHTML(w)}<div class="btnrow two"><button class="primary" data-act="fb-copy" data-id="${w.id}">Copy</button><button class="ghost" data-act="edit" data-id="${w.id}">${ico('edit',16)} Edit</button></div></section>`}).join('');
 }
 function renderHistory(){
   const all=sorted();
@@ -2399,13 +2406,23 @@ function recordsHTML(){
   return h;
 }
 /* workout complete */
+/* Calories: MET × body weight (kg) × hours. Lifting 4.0 (incl. rest between sets), abs 3.8, yoga 2.5; walking/running from speed and incline (ACSM). */
+function kgOn(date){const w=[...db.weights].filter(x=>x.date<=date).sort((a,b)=>a.date<b.date?1:-1)[0];return w?+w.kg:(+latestKg()||80)}
+function cardioMET(c){const t=c.type||'',v=+c.speed||0,g=(+c.inc||0)/100,mm=v*1000/60;
+  if(/walk/i.test(t))return v?Math.max(2.5,(3.5+0.1*mm+1.8*mm*g)/3.5):3.5+(+c.inc||0)*0.25;
+  if(/run/i.test(t))return v?(3.5+0.2*mm+0.9*mm*g)/3.5:8;
+  return ({'Stationary bike':6,'Elliptical':5,'Stair climber':8,'Rowing machine':7})[t]||5}
 function workoutStats(w){
   let vol=0,sets=0;w.exercises.forEach(e=>e.sets.forEach(s=>{sets++;if(s.w!==''&&+s.w>0&&+s.r>0)vol+=(+s.w)*(+s.r)}));
-  const kg=+latestKg()||80,mins=w.mins||Math.max(20,Math.round(sets*2.6));
-  let kcal=3.5*kg*mins/60;cxList(w).forEach(c=>{const m=+c.min||0,inc=+c.inc||0,met=/run/i.test(c.type)?8:3.5+inc*0.25;kcal+=met*kg*m/60});
+  const kg=kgOn(w.date),cx=cxList(w),cmin=cx.reduce((a,c)=>a+(+c.min||0),0);
+  let lift=sets?(w.mins&&w.mins>cmin?w.mins-cmin:Math.round(sets*2.6)):0;
+  const met=w.extra==='yoga'?2.5:w.extra==='abs'?3.8:4;
+  let kcal=met*kg*lift/60;cx.forEach(c=>{kcal+=cardioMET(c)*kg*(+c.min||0)/60});
+  const mins=w.mins||lift+cmin;
   const prs=allPRs().events.filter(p=>p.wid===w.id);
-  return {vol:Math.round(vol),sets,mins,kcal:Math.round(kcal/10)*10,prs};
+  return {vol:Math.round(vol),sets,mins,lift,cmin,kg,kcal:Math.round(kcal/5)*5,prs};
 }
+
 function showComplete(w){
   const s=workoutStats(w),el=$('#complete');
   const box=(v,k)=>`<div class="cbox"><div class="num">${v}</div><div class="mut sm2">${k}</div></div>`;
