@@ -24,5 +24,5 @@ jobs:
       - name: Deploy
         if: env.SUPABASE_ACCESS_TOKEN != ''
         run: |
-          supabase functions deploy coach --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api
-          supabase functions deploy push --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api
+          supabase functions deploy coach --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api --yes
+          supabase functions deploy push --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api --yes
