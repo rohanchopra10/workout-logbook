@@ -1,6 +1,6 @@
 # Deploys the Supabase Edge Function "coach" whenever its code changes on main.
 # Needs one repository secret: SUPABASE_ACCESS_TOKEN (Supabase → Account → Access tokens).
-name: Deploy coach function
+name: Deploy Supabase functions
 on:
   push:
     branches: [main]
@@ -23,4 +23,6 @@ jobs:
           version: latest
       - name: Deploy
         if: env.SUPABASE_ACCESS_TOKEN != ''
-        run: supabase functions deploy coach --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api
+        run: |
+          supabase functions deploy coach --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api
+          supabase functions deploy push --project-ref ekpkhvqjllquhztbtpsx --no-verify-jwt --use-api

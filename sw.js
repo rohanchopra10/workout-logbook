@@ -1,5 +1,5 @@
 // Workout Logbook offline support. Only the app's own files are cached here, never your workouts or account requests.
-const CACHE = 'logbook-v6';
+const CACHE = 'logbook-v7';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './config.js', './supabase.js'];
 
 self.addEventListener('install', e => {
@@ -30,4 +30,20 @@ self.addEventListener('fetch', e => {
       return hit || net;
     })));
   }
+});
+
+// Lock-screen rest alerts sent by the "push" Supabase function.
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) {}
+  e.waitUntil(self.registration.showNotification(d.title || 'Rest over', {
+    body: d.body || 'Time for your next set', tag: 'rest', renotify: true, icon: 'icon-192.png', badge: 'icon-192.png'
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
+    for (const c of cs) if ('focus' in c) return c.focus();
+    return clients.openWindow('./');
+  }));
 });

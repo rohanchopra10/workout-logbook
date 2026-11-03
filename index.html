@@ -1166,8 +1166,8 @@ function rebuildCard(i){const sec=view.querySelector(`.ex[data-i="${i}"]`);if(se
 let rest=null,restAC=null;
 function restSecs(name){const t=targetFor(name);const r=t?t.rest:'90 sec';const n=parseInt(r,10)||90;return /min/.test(r)?n*60:n}
 function beep(){try{if(!restAC)return;const o=restAC.createOscillator(),g=restAC.createGain();o.frequency.value=880;o.connect(g);g.connect(restAC.destination);const t=restAC.currentTime;g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.3,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);o.start(t);o.stop(t+0.3);const o2=restAC.createOscillator();o2.frequency.value=1175;o2.connect(g);o2.start(t+0.32);o2.stop(t+0.6);g.gain.setValueAtTime(0.3,t+0.33);g.gain.exponentialRampToValueAtTime(0.0001,t+0.6)}catch(e){}}
-function startRest(name){if((libFor(name)||{}).cat==='Yoga')return;try{restAC=restAC||new (window.AudioContext||window.webkitAudioContext)();if(restAC.state==='suspended')restAC.resume()}catch(e){}const sec=restSecs(name);clearInterval(rest&&rest.iv);rest={end:Date.now()+sec*1000,total:sec,iv:setInterval(tickRest,250)};$('#restbar').hidden=false;tickRest()}
-function stopRest(){if(rest)clearInterval(rest.iv);rest=null;const b=$('#restbar');b.hidden=true;b.classList.remove('over')}
+function startRest(name){if((libFor(name)||{}).cat==='Yoga')return;try{restAC=restAC||new (window.AudioContext||window.webkitAudioContext)();if(restAC.state==='suspended')restAC.resume()}catch(e){}const sec=restSecs(name);clearInterval(rest&&rest.iv);rest={end:Date.now()+sec*1000,total:sec,iv:setInterval(tickRest,250)};pushSchedule(rest.end,name);$('#restbar').hidden=false;tickRest()}
+function stopRest(){if(rest)clearInterval(rest.iv);rest=null;pushCancel();const b=$('#restbar');b.hidden=true;b.classList.remove('over')}
 function tickRest(){if(!rest)return;const left=Math.max(0,Math.ceil((rest.end-Date.now())/1000)),b=$('#restbar');$('#rest-t').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('#rest-fill').style.width=(100-Math.min(100,left/rest.total*100))+'%';if(left<=0){clearInterval(rest.iv);rest=null;b.classList.add('over');$('#rest-t').textContent='Go!';$('#rest-l').textContent='Rest done · next set';beep();try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}setTimeout(()=>{if(!rest){b.hidden=true;b.classList.remove('over');$('#rest-l').textContent='Rest'}},4000)}}
 function refreshCard(i){
   const sec=view.querySelector(`.ex[data-i="${i}"]`);if(!sec)return;
@@ -1469,6 +1469,45 @@ async function bcRun(){
 (function(){const f=document.createElement('input');f.type='file';f.accept='image/*';f.id='bc-file';f.hidden=true;document.body.appendChild(f);
   f.addEventListener('change',async()=>{const file=f.files&&f.files[0];f.value='';if(!file||!bc.slot)return;try{bc.pending[bc.slot]=await shrinkPhoto(file)}catch(e){toast('Couldn’t open that photo')}bc.slot=null;if(tab==='weight')renderWeight()})})();
 
+
+
+/* ---------- Lock-screen rest alerts (Web Push via the "push" Supabase function) ---------- */
+const PUSH_URL=()=>String(CFG.supabaseUrl||'').replace(/\/$/,'')+'/functions/v1/push';
+const pushSupported=()=>'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+const isStandalone=()=>(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+function pushSub(){try{return JSON.parse(localStorage.getItem('push-sub')||'null')}catch(e){return null}}
+const pushOn=()=>!!(acct.user&&pushSupported()&&Notification.permission==='granted'&&pushSub());
+const u8b64=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4)),c=>c.charCodeAt(0));
+async function pushHeaders(){try{const s=(await acct.sb.auth.getSession()).data.session;return s?{Authorization:'Bearer '+s.access_token,apikey:CFG.supabaseKey,'Content-Type':'application/json'}:null}catch(e){return null}}
+async function pushPost(body){const h=await pushHeaders();if(!h)throw new Error('signin');return fetch(PUSH_URL(),{method:'POST',headers:h,body:JSON.stringify(body)})}
+let pushBusy=false;
+async function pushEnable(){
+  if(pushBusy)return;if(!pushSupported()){toast('Open the app from its Home Screen icon to turn on alerts');return}
+  pushBusy=true;renderProfile();
+  try{
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){toast('Notifications are off. Allow them in iPhone Settings, then Notifications, then Workout Logbook');return}
+    const reg=await navigator.serviceWorker.ready,r=await fetch(PUSH_URL());if(!r.ok)throw new Error('key');const {publicKey}=await r.json();
+    let sub=await reg.pushManager.getSubscription();
+    if(sub&&localStorage.getItem('push-key')!==publicKey){await sub.unsubscribe().catch(()=>{});sub=null}
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8b64(publicKey)});
+    localStorage.setItem('push-sub',JSON.stringify(sub.toJSON()));localStorage.setItem('push-key',publicKey);
+    const t=await pushPost({sub:sub.toJSON(),test:true});
+    toast(t.ok?'Rest alerts are on. A test notification is on its way':'Turned on, but the test didn’t send. Try again later');
+  }catch(e){toast('Couldn’t turn on alerts. Check your internet and try again')}
+  finally{pushBusy=false;if(tab==='profile')renderProfile()}
+}
+async function pushDisable(){try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe()}catch(e){}localStorage.removeItem('push-sub');localStorage.removeItem('push-key');toast('Rest alerts are off on this phone');renderProfile()}
+async function pushTest(){try{const r=await pushPost({sub:pushSub(),test:true});toast(r.ok?'Test sent. Lock your phone to see it':'Test didn’t send. Try turning alerts off and on again')}catch(e){toast('Couldn’t send the test')}}
+function pushSchedule(end,name){if(!pushOn())return;db.settings.restEnd=end;persist();pushPost({sub:pushSub(),end,title:'Rest over',body:name?`Next set: ${name}`:'Time for your next set'}).catch(()=>{})}
+function pushCancel(){if(db.settings&&db.settings.restEnd){db.settings.restEnd=0;persist()}}
+function pushHTML(){
+  if(!acct.user)return '';let b;
+  if(!pushSupported())b=`<p class="hint" style="margin:0">${/iPhone|iPad/.test(navigator.userAgent)&&!isStandalone()?'Open the app from its Home Screen icon to turn this on. iPhone only allows notifications for apps added to the Home Screen.':'This phone or browser doesn’t support notifications.'}</p>`;
+  else if(pushOn())b=`<p class="hint" style="margin:0 0 10px">On for this phone. When your rest timer ends you get a "Rest over" notification, even when the phone is locked.</p><div class="btnrow"><button class="ghost sm" data-act="push-test">Send a test</button><button class="ghost sm" data-act="push-off">Turn off</button></div>`;
+  else b=`<p class="hint" style="margin:0 0 10px">Get a "Rest over" notification on your lock screen when the rest timer ends.${Notification.permission==='denied'?' Notifications are blocked: allow them in iPhone Settings, then Notifications, then Workout Logbook.':''}</p><button class="primary sm" data-act="push-on" ${pushBusy?'disabled':''}>${pushBusy?'Turning on…':'Turn on rest alerts'}</button>`;
+  return `<section class="panel"><h2>Rest timer alerts</h2>${b}</section>`;
+}
 
 /* ---------- Coach credit meter: estimated from token usage (Sonnet 5.5: $2 in / $10 out per million). ---------- */
 const CR_IN=2/1e6,CR_OUT=10/1e6,CR_LOW=1;
@@ -2463,6 +2502,7 @@ function settingsHTML(){
   const d=daysSinceBackup(),row=(i,t,r,act)=>`<button class="srow"${act?` data-act="${act}"`:''}><span class="mut">${ico(i,20)}</span><span class="f1">${t}</span>${r}</button>`;
   return `<div class="wo-head"><button class="iconbtn" data-act="prof-back" aria-label="Back">${ico('back',20)}</button><h1 class="wo-t f1">Settings</h1></div>
   <section class="panel list3">${row('ruler','Units','<span class="mut sm2">kg · km</span>')}${row('globe','Language','<span class="mut sm2">English</span>')}${acct.user?row('sync','Sync','<span class="mut sm2">'+esc(syncLabel())+'</span>'+ico('chev',17),'open-sync'):''}</section>
+  ${pushHTML()}
   ${creditHTML()}
   <section class="panel"><h2>Backup</h2><p class="hint" style="margin:0 0 10px">${acct.user?'Your log is saved to your account automatically. You can also keep your own copy.':'Your log is saved only on this phone. Back up every week or two.'} ${d===null?'No backup file yet.':`Last backup: ${d===0?'today':d+' day'+(d===1?'':'s')+' ago'}.`}</p>
   <div class="btnrow"><button class="primary sm" data-act="backup-file">${ico('save',16)} Save backup file</button><button class="ghost sm" data-act="restore-file">Restore from file</button></div></section>
@@ -2549,6 +2589,9 @@ view.addEventListener('click',e=>{
   if(act==='bc-diet'){db.settings.dietWant=!db.settings.dietWant;persist();renderWeight();return}
   if(act==='bc-dtype'){db.settings.dietType=b.dataset.v;persist();renderWeight();return}
   if(act==='bc-del'){const id=b.dataset.id;ask('Delete this body check?','The photos and advice will be removed.','Delete',()=>{const c=bcList().find(x=>x.id===id);db.settings.bodyChecks=bcList().filter(x=>x.id!==id);persist();if(c)(c.views||[]).forEach(v=>idbDel(id+':'+v));renderWeight()},true);return}
+  if(act==='push-on'){pushEnable();return}
+  if(act==='push-off'){pushDisable();return}
+  if(act==='push-test'){pushTest();return}
   if(act==='credit-set'){openModal({title:'Update coach credit',text:'Type the Credit balance shown in the Claude Console (Settings, then Billing), in dollars.',input:{placeholder:'e.g. 4.62'},ok:{label:'Save',fn:v=>{const n=parseFloat(String(v).replace(/[^0-9.]/g,''));if(!(n>=0&&n<1000)){toast('Enter the balance, e.g. 4.62');return}db.settings.coachCredit={start:n,used:0,setOn:today()};persist();closeModal();render();toast('Coach credit updated')}}});return}
   if(act==='aip-new'){if(aipBusy)return;ask('Make a new plan now?','Your AI coach will pick new exercises for every workout day, using your latest body check. They stay the same for the next 2 weeks.','Make new plan',()=>makeAiPlan(true));return}
   if(act==='open-chat'){openChat();return}
@@ -2632,7 +2675,7 @@ const cleanData=d=>({workouts:d.workouts,weights:d.weights,settings:d.settings,d
 
 /* ---------- account (Supabase) ---------- */
 const CFG=window.LOGBOOK_CONFIG||{};
-const APP_VER='20261027050436';
+const APP_VER='20261103040734';
 const acct={sb:null,user:null,state:'off',timer:null,busy:false,again:false,lastSync:0};
 const OWNER_KEY='gymlog-owner';
 function acctReady(){return !!acct.sb}
