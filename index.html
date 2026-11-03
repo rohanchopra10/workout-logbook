@@ -2615,7 +2615,7 @@ view.addEventListener('click',e=>{
   if(act==='rest-skip'){stopRest();return}
   if(act==='rest-add'){if(rest)rest.end+=15000;tickRest();return}
   if(act==='add-set'){const s=draft.exercises[idx(b)].sets;const p=s[s.length-1];s.push({w:p?p.w:'',r:p?p.r:'',t:p&&p.t?p.t:'',done:false});saveDraft();renderLog();return}
-  if(act==='timer'){const i=idx(b),j=+b.closest('.set').dataset.j;if(timer&&timer.i===i&&timer.j===j)stopTimer();else startTimer(i,j);return}
+  if(act==='timer'){const i=idx(b),j=+b.closest('.set').dataset.j;if(timer&&timer.i===i&&timer.j===j){stopTimer(true);const ex=draft.exercises[i],st=ex&&ex.sets[j];if(st&&+st.t>0){st.done=true;st.edited=false;if(!draft.started)draft.started=Date.now();saveDraft();rebuildCard(i);startRest(ex.name);toast(st.t+' seconds saved'+(rest?' · rest started':''));try{navigator.vibrate&&navigator.vibrate(80)}catch(e){}}}else startTimer(i,j);return}
   if(act==='rm-set'){stopTimer(true);draft.exercises[idx(b)].sets.splice(+b.closest('.set').dataset.j,1);saveDraft();renderLog();return}
   if(act==='fill-last'){const i=idx(b);const l=lastFor(draft.exercises[i].name,draft.editingId,draft.date);if(l){draft.exercises[i].sets=l.sets.map(s=>({w:s.w===''?'':String(s.w),r:s.r===''?'':String(s.r),t:blank(s.t)?'':String(s.t),done:false}));saveDraft();renderLog()}return}
   if(act==='template'){if(setsFilled())ask('Replace exercises?','Loading the template clears the sets you have entered.','Load template',()=>{applyTemplate();saveDraft();renderLog()},true);else{applyTemplate();saveDraft();renderLog()}return}
@@ -2675,7 +2675,7 @@ const cleanData=d=>({workouts:d.workouts,weights:d.weights,settings:d.settings,d
 
 /* ---------- account (Supabase) ---------- */
 const CFG=window.LOGBOOK_CONFIG||{};
-const APP_VER='20261103040734';
+const APP_VER='20261103050748';
 const acct={sb:null,user:null,state:'off',timer:null,busy:false,again:false,lastSync:0};
 const OWNER_KEY='gymlog-owner';
 function acctReady(){return !!acct.sb}
